@@ -1,0 +1,32 @@
+#!/bin/sh /etc/rc.common
+
+START=19
+USE_PROCD=1
+QUIET=""
+
+service_triggers() {
+	procd_add_reload_trigger firewall
+}
+
+restart() {
+	fw4 restart
+}
+
+start_service() {
+	fw4 ${QUIET} start
+}
+
+stop_service() {
+	fw4 flush
+}
+
+reload_service() {
+	fw4 reload
+}
+
+boot() {
+	# Be silent on boot, firewall might be started by hotplug already,
+	# so don't complain in syslog.
+	QUIET=-q
+	start_service
+}

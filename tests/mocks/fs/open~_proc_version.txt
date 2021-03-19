@@ -1,0 +1,1 @@
+Linux version 5.4.101 (jow@j7) (gcc version 8.4.0 (OpenWrt GCC 8.4.0 r12978-7c2e0fa586)) #0 SMP Tue Mar 2 14:41:54 2021

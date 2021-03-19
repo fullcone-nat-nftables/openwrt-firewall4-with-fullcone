@@ -1,0 +1,231 @@
+{
+	"interface": [
+		{
+			"interface": "lan",
+			"up": true,
+			"pending": false,
+			"available": true,
+			"autostart": true,
+			"dynamic": false,
+			"uptime": 89940,
+			"l3_device": "br-lan",
+			"proto": "static",
+			"device": "br-lan",
+			"updated": [
+				"addresses"
+			],
+			"metric": 0,
+			"dns_metric": 0,
+			"delegation": true,
+			"ipv4-address": [
+				{
+					"address": "192.168.26.1",
+					"mask": 24
+				}
+			],
+			"ipv6-address": [
+
+			],
+			"ipv6-prefix": [
+
+			],
+			"ipv6-prefix-assignment": [
+				{
+					"address": "fd63:e2f:f706::",
+					"mask": 60,
+					"local-address": {
+						"address": "fd63:e2f:f706::1",
+						"mask": 60
+					}
+				}
+			],
+			"route": [
+
+			],
+			"dns-server": [
+
+			],
+			"dns-search": [
+
+			],
+			"neighbors": [
+
+			],
+			"inactive": {
+				"ipv4-address": [
+
+				],
+				"ipv6-address": [
+
+				],
+				"route": [
+
+				],
+				"dns-server": [
+
+				],
+				"dns-search": [
+
+				],
+				"neighbors": [
+
+				]
+			},
+			"data": {
+
+			}
+		},
+		{
+			"interface": "loopback",
+			"up": true,
+			"pending": false,
+			"available": true,
+			"autostart": true,
+			"dynamic": false,
+			"uptime": 89939,
+			"l3_device": "lo",
+			"proto": "static",
+			"device": "lo",
+			"updated": [
+				"addresses"
+			],
+			"metric": 0,
+			"dns_metric": 0,
+			"delegation": true,
+			"ipv4-address": [
+				{
+					"address": "127.0.0.1",
+					"mask": 8
+				}
+			],
+			"ipv6-address": [
+
+			],
+			"ipv6-prefix": [
+
+			],
+			"ipv6-prefix-assignment": [
+
+			],
+			"route": [
+
+			],
+			"dns-server": [
+
+			],
+			"dns-search": [
+
+			],
+			"neighbors": [
+
+			],
+			"inactive": {
+				"ipv4-address": [
+
+				],
+				"ipv6-address": [
+
+				],
+				"route": [
+
+				],
+				"dns-server": [
+
+				],
+				"dns-search": [
+
+				],
+				"neighbors": [
+
+				]
+			},
+			"data": {
+
+			}
+		},
+		{
+			"interface": "wan6",
+			"up": false,
+			"pending": true,
+			"available": true,
+			"autostart": true,
+			"dynamic": false,
+			"proto": "dhcpv6",
+			"device": "wan",
+			"data": {
+
+			}
+		},
+		{
+			"interface": "wan",
+			"up": true,
+			"pending": false,
+			"available": true,
+			"autostart": true,
+			"dynamic": false,
+			"uptime": 35968,
+			"l3_device": "wan",
+			"proto": "dhcp",
+			"device": "wan",
+			"metric": 0,
+			"dns_metric": 0,
+			"delegation": true,
+			"ipv4-address": [
+				{
+					"address": "10.11.12.194",
+					"mask": 24
+				}
+			],
+			"ipv6-address": [
+
+			],
+			"ipv6-prefix": [
+
+			],
+			"ipv6-prefix-assignment": [
+
+			],
+			"route": [
+				{
+					"target": "0.0.0.0",
+					"mask": 0,
+					"nexthop": "10.11.12.13",
+					"source": "10.11.12.194/32"
+				}
+			],
+			"dns-server": [
+				"10.11.12.13"
+			],
+			"dns-search": [
+				"lan"
+			],
+			"neighbors": [
+
+			],
+			"inactive": {
+				"ipv4-address": [
+
+				],
+				"ipv6-address": [
+
+				],
+				"route": [
+
+				],
+				"dns-server": [
+
+				],
+				"dns-search": [
+
+				],
+				"neighbors": [
+
+				]
+			},
+			"data": {
+				"hostname": "OpenWrt",
+				"leasetime": 43200
+			}
+		}
+	]
+}

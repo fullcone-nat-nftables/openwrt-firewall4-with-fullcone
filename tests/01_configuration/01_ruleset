@@ -1,0 +1,303 @@
+Testing the ruleset rendered from the default firewall configuration.
+
+-- Testcase --
+{%
+	include("./tests/mock.uc", {
+		TESTFILE: "test-wrapper.uc",
+		TRACE_CALLS: "stderr",
+
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define lan_devices = { "br-lan" }
+	define lan_subnets = { 192.168.26.0/24, fd63:e2f:f706::/60 }
+
+	define wan_devices = { "wan" }
+	define wan_subnets = { 10.11.12.0/24 }
+
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy accept;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+
+
+		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
+
+
+		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
+		iifname "wan" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+
+
+
+		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
+		iifname "wan" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+
+		jump handle_reject
+	}
+
+	chain output {
+		type filter hook output priority filter; policy accept;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+
+
+
+		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
+		oifname "wan" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain syn_flood {
+		tcp flags & (fin | syn | rst | ack) == syn limit rate 25/second burst 50 packets return comment "!fw4: Accept SYN packets below rate-limit"
+		drop comment "!fw4: Drop excess packets"
+	}
+
+
+	chain input_lan {
+		jump accept_from_lan
+	}
+
+	chain output_lan {
+		jump accept_to_lan
+	}
+
+	chain forward_lan {
+		jump accept_to_wan comment "!fw4: Accept lan to wan forwarding"
+		jump accept_to_lan
+	}
+
+	chain accept_from_lan {
+		iifname "br-lan" counter accept comment "!fw4: accept lan IPv4/IPv6 traffic"
+	}
+
+	chain accept_to_lan {
+		oifname "br-lan" counter accept comment "!fw4: accept lan IPv4/IPv6 traffic"
+	}
+
+	chain input_wan {
+		meta nfproto ipv4 udp dport 68 counter accept comment "!fw4: Allow-DHCP-Renew"
+		meta nfproto ipv4 meta l4proto icmp counter accept comment "!fw4: Allow-Ping"
+		meta nfproto ipv4 meta l4proto igmp counter accept comment "!fw4: Allow-IGMP"
+		ip6 saddr fc00::/6 ip6 daddr fc00::/6 udp dport 546 counter accept comment "!fw4: Allow-DHCPv6"
+		meta l4proto ipv6-icmp ip6 saddr fe80::/10 counter accept comment "!fw4: Allow-MLD"
+		meta nfproto ipv6 meta l4proto ipv6-icmp limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Input"
+		jump reject_from_wan
+	}
+
+	chain output_wan {
+		jump accept_to_wan
+	}
+
+	chain forward_wan {
+		meta nfproto ipv6 meta l4proto ipv6-icmp limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Forward"
+		meta l4proto esp counter jump accept_to_lan comment "!fw4: Allow-IPSec-ESP"
+		udp dport 500 counter jump accept_to_lan comment "!fw4: Allow-ISAKMP"
+		jump reject_to_wan
+	}
+
+	chain accept_to_wan {
+		oifname "wan" counter accept comment "!fw4: accept wan IPv4/IPv6 traffic"
+	}
+
+	chain reject_from_wan {
+		iifname "wan" counter jump handle_reject comment "!fw4: reject wan IPv4/IPv6 traffic"
+	}
+
+	chain reject_to_wan {
+		oifname "wan" counter jump handle_reject comment "!fw4: reject wan IPv4/IPv6 traffic"
+	}
+
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+
+		oifname "wan" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
+	}
+
+	chain srcnat_wan {
+		meta nfproto ipv4 masquerade comment "!fw4: Masquerade IPv4 wan traffic"
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+
+		iifname "br-lan" jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+
+	}
+
+	ct helper amanda {
+		type "amanda" protocol udp;
+	}
+
+	ct helper ftp {
+		type "ftp" protocol tcp;
+	}
+
+	ct helper RAS {
+		type "RAS" protocol udp;
+	}
+
+	ct helper Q.931 {
+		type "Q.931" protocol tcp;
+	}
+
+	ct helper irc {
+		type "irc" protocol tcp;
+	}
+
+	ct helper netbios-ns {
+		type "netbios-ns" protocol udp;
+	}
+
+	ct helper pptp {
+		type "pptp" protocol tcp;
+	}
+
+	ct helper sane {
+		type "sane" protocol tcp;
+	}
+
+	ct helper sip {
+		type "sip" protocol udp;
+	}
+
+	ct helper snmp {
+		type "snmp" protocol udp;
+	}
+
+	ct helper tftp {
+		type "tftp" protocol udp;
+	}
+
+	ct helper rtsp {
+		type "rtsp" protocol tcp;
+	}
+
+
+	chain helper_lan {
+		meta l4proto udp udp dport 10080 ct helper set "amanda" comment "!fw4: Amanda backup and archiving proto"
+		meta l4proto tcp tcp dport 21 ct helper set "ftp" comment "!fw4: FTP passive connection tracking"
+		meta l4proto udp udp dport 1719 ct helper set "RAS" comment "!fw4: RAS proto tracking"
+		meta l4proto tcp tcp dport 1720 ct helper set "Q.931" comment "!fw4: Q.931 proto tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 6667 ct helper set "irc" comment "!fw4: IRC DCC connection tracking"
+		meta nfproto ipv4 meta l4proto udp udp dport 137 ct helper set "netbios-ns" comment "!fw4: NetBIOS name service broadcast tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 1723 ct helper set "pptp" comment "!fw4: PPTP VPN connection tracking"
+		meta l4proto tcp tcp dport 6566 ct helper set "sane" comment "!fw4: SANE scanner connection tracking"
+		meta l4proto udp udp dport 5060 ct helper set "sip" comment "!fw4: SIP VoIP connection tracking"
+		meta nfproto ipv4 meta l4proto udp udp dport 161 ct helper set "snmp" comment "!fw4: SNMP monitoring connection tracking"
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 554 ct helper set "rtsp" comment "!fw4: RTSP connection tracking"
+	}
+
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+
+		iifname "wan" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 ingress MTU fixing"
+		oifname "wan" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 egress MTU fixing"
+	}
+}
+-- End --
+
+-- Expect stderr --
+[call] ctx.call object <network.interface> method <dump> args <null>
+[call] ctx.call object <service> method <get_data> args <{ "type": "firewall" }>
+[call] fs.open path </proc/version> mode <r>
+[call] fs.stat path </sys/module/nf_conntrack_amanda>
+[call] fs.stat path </sys/module/nf_conntrack_ftp>
+[call] fs.stat path </sys/module/nf_conntrack_h323>
+[call] fs.stat path </sys/module/nf_conntrack_h323>
+[call] fs.stat path </sys/module/nf_conntrack_irc>
+[call] fs.stat path </sys/module/nf_conntrack_netbios_ns>
+[call] fs.stat path </sys/module/nf_conntrack_pptp>
+[call] fs.stat path </sys/module/nf_conntrack_sane>
+[call] fs.stat path </sys/module/nf_conntrack_sip>
+[call] fs.stat path </sys/module/nf_conntrack_snmp>
+[call] fs.stat path </sys/module/nf_conntrack_tftp>
+[call] fs.stat path </sys/module/nf_conntrack_rtsp>
+[call] fs.open path </sys/class/net/br-lan/flags> mode <r>
+[call] fs.open path </sys/class/net/br-lan/flags> mode <r>
+-- End --

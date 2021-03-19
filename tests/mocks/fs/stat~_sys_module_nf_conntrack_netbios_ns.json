@@ -1,0 +1,32 @@
+{
+   "atime" : 1616175834,
+   "blksize" : 4096,
+   "blocks" : 0,
+   "ctime" : 1616175834,
+   "dev" : {
+      "major" : 0,
+      "minor" : 11
+   },
+   "gid" : 0,
+   "inode" : 6586,
+   "mode" : 493,
+   "mtime" : 1616175834,
+   "nlink" : 6,
+   "perm" : {
+      "group_exec" : true,
+      "group_read" : true,
+      "group_write" : false,
+      "other_exec" : true,
+      "other_read" : true,
+      "other_write" : false,
+      "setgid" : false,
+      "setuid" : false,
+      "sticky" : false,
+      "user_exec" : true,
+      "user_read" : true,
+      "user_write" : true
+   },
+   "size" : 0,
+   "type" : "directory",
+   "uid" : 0
+}
