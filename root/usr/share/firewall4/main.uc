@@ -1,5 +1,7 @@
 {%
 
+let fw4 = require("fw4");
+
 /* Find existing sets.
  *
  * Unfortunately, terse mode (-t) is incompatible with JSON output so

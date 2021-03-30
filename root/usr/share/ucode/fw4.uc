@@ -1,5 +1,9 @@
 {%
 
+let fs = require("fs");
+let uci = require("uci");
+let ubus = require("ubus");
+
 let STATEFILE = "/var/run/fw4.state";
 
 let PARSE_LIST   = 0x01;
