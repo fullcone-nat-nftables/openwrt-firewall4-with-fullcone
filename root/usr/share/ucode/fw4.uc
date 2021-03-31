@@ -253,9 +253,9 @@ function ensure_tcpudp(x) {
 	return false;
 }
 
-function is_family(x, v) { x.family == 0 || x.family == v }
-function family_is_ipv4(x) { x.family == 0 || x.family == 4 }
-function family_is_ipv6(x) { x.family == 0 || x.family == 6 }
+let is_family = (x, v) => (x.family == 0 || x.family == v);
+let family_is_ipv4 = (x) => (x.family == 0 || x.family == 4);
+let family_is_ipv6 = (x) => (x.family == 0 || x.family == 6);
 
 function infer_family(f, objects) {
 	let res = f;
