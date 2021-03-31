@@ -1316,7 +1316,7 @@ return {
 	parse_opt: function(s, opt, fn, defval, flags) {
 		let val = s[opt];
 
-		if (val == null) {
+		if (val === null) {
 			if (flags & REQUIRED) {
 				this.warn_section(s, "option '" + opt + "' is mandatory but not set");
 				return NaN;
