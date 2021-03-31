@@ -31,7 +31,6 @@ table inet fw4 {
 {%  if (length(zone.match_subnets)): %}
 	define {{ zone.name }}_subnets = {{ fw4.set(zone.match_subnets, true) }}
 {%  endif %}
-
 {% endfor %}
 
 	#
@@ -51,23 +50,18 @@ table inet fw4 {
 		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
 
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
-
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
 {% endif %}
-
 {% if (fw4.default_option("synflood_protect")): %}
 		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
 {% endif %}
-
 {% for (local rule in fw4.rules("input")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-
 {% for (local zone in fw4.zones()): for (local rule in zone.match_rules): %}
 		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "input" }) %}
 {% endfor; endfor %}
-
 {% if (fw4.input_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
@@ -77,19 +71,15 @@ table inet fw4 {
 		type filter hook forward priority filter; policy {{ fw4.forward_policy(true) }};
 
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
-
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
 {% endif %}
-
 {% for (local rule in fw4.rules("forward")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-
 {% for (local zone in fw4.zones()): for (local rule in zone.match_rules): %}
 		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "forward" }) %}
 {% endfor; endfor %}
-
 {% if (fw4.forward_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
@@ -101,19 +91,15 @@ table inet fw4 {
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
-
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
 {% endif %}
-
 {% for (local rule in fw4.rules("output")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-
 {% for (local zone in fw4.zones()): for (local rule in zone.match_rules): %}
 		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "output" }) %}
 {% endfor; endfor %}
-
 {% if (fw4.output_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
@@ -144,7 +130,6 @@ table inet fw4 {
 	}
 
 {% endif %}
-
 {% for (local zone in fw4.zones()): %}
 	chain input_{{ zone.name }} {
 {%  for (local rule in fw4.rules("input_"+zone.name)): %}
@@ -193,14 +178,12 @@ table inet fw4 {
 {%  endfor %}
 {% endfor %}
 
-
 	#
 	# NAT rules
 	#
 
 	chain dstnat {
 		type nat hook prerouting priority dstnat; policy accept;
-
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.dnat): %}
 {%   for (let rule in zone.match_rules): %}
@@ -212,7 +195,6 @@ table inet fw4 {
 
 	chain srcnat {
 		type nat hook postrouting priority srcnat; policy accept;
-
 {% for (let redirect in fw4.redirects("srcnat")): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {% endfor %}
@@ -272,7 +254,6 @@ table inet fw4 {
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-
 {% for (let target in ["helper", "notrack"]): %}
 {%  for (let zone in fw4.zones()): %}
 {%   if (zone.dflags[target]): %}
@@ -302,7 +283,6 @@ table inet fw4 {
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-
 {% for (let target in ["helper", "notrack"]): %}
 {%  for (let zone in fw4.zones()): %}
 {%   if (zone.dflags[target]): %}
@@ -336,7 +316,6 @@ table inet fw4 {
 {%   endfor %}
 {%  endif %}
 {% endfor %}
-
 {% for (let target in ["helper", "notrack"]): %}
 {%  for (let zone in fw4.zones()): %}
 {%   if (zone.dflags[target]): %}
@@ -350,14 +329,12 @@ table inet fw4 {
 {%  endfor %}
 {% endfor %}
 
-
 	#
 	# Mangle rules
 	#
 
 	chain mangle_prerouting {
 		type filter hook prerouting priority mangle; policy accept;
-
 {% for (let rule in fw4.rules("mangle_prerouting")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
@@ -365,7 +342,6 @@ table inet fw4 {
 
 	chain mangle_output {
 		type filter hook output priority mangle; policy accept;
-
 {% for (let rule in fw4.rules("mangle_output")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
@@ -373,7 +349,6 @@ table inet fw4 {
 
 	chain mangle_forward {
 		type filter hook forward priority mangle; policy accept;
-
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.mtu_fix): %}
 {%   for (let rule in zone.match_rules): %}
