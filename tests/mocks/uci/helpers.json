@@ -1,146 +1,100 @@
 {
-   "cfg0153e5" : {
-      ".anonymous" : true,
-      ".index" : 0,
-      ".name" : "cfg0153e5",
-      ".type" : "helper",
-      "description" : "Amanda backup and archiving proto",
-      "family" : "any",
-      "module" : "nf_conntrack_amanda",
-      "name" : "amanda",
-      "port" : "10080",
-      "proto" : "udp"
-   },
-   "cfg0253e5" : {
-      ".anonymous" : true,
-      ".index" : 1,
-      ".name" : "cfg0253e5",
-      ".type" : "helper",
-      "description" : "FTP passive connection tracking",
-      "family" : "any",
-      "module" : "nf_conntrack_ftp",
-      "name" : "ftp",
-      "port" : "21",
-      "proto" : "tcp"
-   },
-   "cfg0353e5" : {
-      ".anonymous" : true,
-      ".index" : 2,
-      ".name" : "cfg0353e5",
-      ".type" : "helper",
-      "description" : "RAS proto tracking",
-      "family" : "any",
-      "module" : "nf_conntrack_h323",
-      "name" : "RAS",
-      "port" : "1719",
-      "proto" : "udp"
-   },
-   "cfg0453e5" : {
-      ".anonymous" : true,
-      ".index" : 3,
-      ".name" : "cfg0453e5",
-      ".type" : "helper",
-      "description" : "Q.931 proto tracking",
-      "family" : "any",
-      "module" : "nf_conntrack_h323",
-      "name" : "Q.931",
-      "port" : "1720",
-      "proto" : "tcp"
-   },
-   "cfg0553e5" : {
-      ".anonymous" : true,
-      ".index" : 4,
-      ".name" : "cfg0553e5",
-      ".type" : "helper",
-      "description" : "IRC DCC connection tracking",
-      "family" : "ipv4",
-      "module" : "nf_conntrack_irc",
-      "name" : "irc",
-      "port" : "6667",
-      "proto" : "tcp"
-   },
-   "cfg0653e5" : {
-      ".anonymous" : true,
-      ".index" : 5,
-      ".name" : "cfg0653e5",
-      ".type" : "helper",
-      "description" : "NetBIOS name service broadcast tracking",
-      "family" : "ipv4",
-      "module" : "nf_conntrack_netbios_ns",
-      "name" : "netbios-ns",
-      "port" : "137",
-      "proto" : "udp"
-   },
-   "cfg0753e5" : {
-      ".anonymous" : true,
-      ".index" : 6,
-      ".name" : "cfg0753e5",
-      ".type" : "helper",
-      "description" : "PPTP VPN connection tracking",
-      "family" : "ipv4",
-      "module" : "nf_conntrack_pptp",
-      "name" : "pptp",
-      "port" : "1723",
-      "proto" : "tcp"
-   },
-   "cfg0853e5" : {
-      ".anonymous" : true,
-      ".index" : 7,
-      ".name" : "cfg0853e5",
-      ".type" : "helper",
-      "description" : "SANE scanner connection tracking",
-      "family" : "any",
-      "module" : "nf_conntrack_sane",
-      "name" : "sane",
-      "port" : "6566",
-      "proto" : "tcp"
-   },
-   "cfg0953e5" : {
-      ".anonymous" : true,
-      ".index" : 8,
-      ".name" : "cfg0953e5",
-      ".type" : "helper",
-      "description" : "SIP VoIP connection tracking",
-      "family" : "any",
-      "module" : "nf_conntrack_sip",
-      "name" : "sip",
-      "port" : "5060",
-      "proto" : "udp"
-   },
-   "cfg0a53e5" : {
-      ".anonymous" : true,
-      ".index" : 9,
-      ".name" : "cfg0a53e5",
-      ".type" : "helper",
-      "description" : "SNMP monitoring connection tracking",
-      "family" : "ipv4",
-      "module" : "nf_conntrack_snmp",
-      "name" : "snmp",
-      "port" : "161",
-      "proto" : "udp"
-   },
-   "cfg0b53e5" : {
-      ".anonymous" : true,
-      ".index" : 10,
-      ".name" : "cfg0b53e5",
-      ".type" : "helper",
-      "description" : "TFTP connection tracking",
-      "family" : "any",
-      "module" : "nf_conntrack_tftp",
-      "name" : "tftp",
-      "port" : "69",
-      "proto" : "udp"
-   },
-   "cfg0c53e5" : {
-      ".anonymous" : true,
-      ".index" : 11,
-      ".name" : "cfg0c53e5",
-      ".type" : "helper",
-      "description" : "RTSP connection tracking",
-      "family" : "ipv4",
-      "module" : "nf_conntrack_rtsp",
-      "name" : "rtsp",
-      "port" : "554",
-      "proto" : "tcp"
-   }
+	"helper": [
+		{
+			"name": "amanda",
+			"description": "Amanda backup and archiving proto",
+			"family": "any",
+			"module": "nf_conntrack_amanda",
+			"port": "10080",
+			"proto": "udp"
+		},
+		{
+			"name": "ftp",
+			"description": "FTP passive connection tracking",
+			"family": "any",
+			"module": "nf_conntrack_ftp",
+			"port": "21",
+			"proto": "tcp"
+		},
+		{
+			"name": "RAS",
+			"description": "RAS proto tracking",
+			"family": "any",
+			"module": "nf_conntrack_h323",
+			"port": "1719",
+			"proto": "udp"
+		},
+		{
+			"name": "Q.931",
+			"description": "Q.931 proto tracking",
+			"family": "any",
+			"module": "nf_conntrack_h323",
+			"port": "1720",
+			"proto": "tcp"
+		},
+		{
+			"name": "irc",
+			"description": "IRC DCC connection tracking",
+			"family": "ipv4",
+			"module": "nf_conntrack_irc",
+			"port": "6667",
+			"proto": "tcp"
+		},
+		{
+			"name": "netbios-ns",
+			"description": "NetBIOS name service broadcast tracking",
+			"family": "ipv4",
+			"module": "nf_conntrack_netbios_ns",
+			"port": "137",
+			"proto": "udp"
+		},
+		{
+			"name": "pptp",
+			"description": "PPTP VPN connection tracking",
+			"family": "ipv4",
+			"module": "nf_conntrack_pptp",
+			"port": "1723",
+			"proto": "tcp"
+		},
+		{
+			"name": "sane",
+			"description": "SANE scanner connection tracking",
+			"family": "any",
+			"module": "nf_conntrack_sane",
+			"port": "6566",
+			"proto": "tcp"
+		},
+		{
+			"name": "sip",
+			"description": "SIP VoIP connection tracking",
+			"family": "any",
+			"module": "nf_conntrack_sip",
+			"port": "5060",
+			"proto": "udp"
+		},
+		{
+			"name": "snmp",
+			"description": "SNMP monitoring connection tracking",
+			"family": "ipv4",
+			"module": "nf_conntrack_snmp",
+			"port": "161",
+			"proto": "udp"
+		},
+		{
+			"name": "tftp",
+			"description": "TFTP connection tracking",
+			"family": "any",
+			"module": "nf_conntrack_tftp",
+			"port": "69",
+			"proto": "udp"
+		},
+		{
+			"name": "rtsp",
+			"description": "RTSP connection tracking",
+			"family": "ipv4",
+			"module": "nf_conntrack_rtsp",
+			"port": "554",
+			"proto": "tcp"
+		}
+	]
 }

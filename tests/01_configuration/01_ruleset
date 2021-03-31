@@ -2,8 +2,7 @@ Testing the ruleset rendered from the default firewall configuration.
 
 -- Testcase --
 {%
-	include("./tests/mock.uc", {
-		TESTFILE: "test-wrapper.uc",
+	include("./root/usr/share/firewall4/main.uc", {
 		TRACE_CALLS: "stderr",
 
 		getenv: function(varname) {
@@ -32,10 +31,8 @@ table inet fw4 {
 
 	define lan_devices = { "br-lan" }
 	define lan_subnets = { 192.168.26.0/24, fd63:e2f:f706::/60 }
-
 	define wan_devices = { "wan" }
 	define wan_subnets = { 10.11.12.0/24 }
-
 
 	#
 	# User includes
@@ -54,26 +51,17 @@ table inet fw4 {
 		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
 
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
-
-
 		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
-
-
 		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
 		iifname "wan" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
-
 	}
 
 	chain forward {
 		type filter hook forward priority filter; policy drop;
 
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
-
-
-
 		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
 		iifname "wan" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
-
 		jump handle_reject
 	}
 
@@ -83,12 +71,8 @@ table inet fw4 {
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
-
-
-
 		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
 		oifname "wan" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
-
 	}
 
 	chain handle_reject {
@@ -100,7 +84,6 @@ table inet fw4 {
 		tcp flags & (fin | syn | rst | ack) == syn limit rate 25/second burst 50 packets return comment "!fw4: Accept SYN packets below rate-limit"
 		drop comment "!fw4: Drop excess packets"
 	}
-
 
 	chain input_lan {
 		jump accept_from_lan
@@ -125,11 +108,12 @@ table inet fw4 {
 
 	chain input_wan {
 		meta nfproto ipv4 udp dport 68 counter accept comment "!fw4: Allow-DHCP-Renew"
-		meta nfproto ipv4 meta l4proto icmp counter accept comment "!fw4: Allow-Ping"
+		meta nfproto ipv4 icmp type 8 counter accept comment "!fw4: Allow-Ping"
 		meta nfproto ipv4 meta l4proto igmp counter accept comment "!fw4: Allow-IGMP"
 		ip6 saddr fc00::/6 ip6 daddr fc00::/6 udp dport 546 counter accept comment "!fw4: Allow-DHCPv6"
-		meta l4proto ipv6-icmp ip6 saddr fe80::/10 counter accept comment "!fw4: Allow-MLD"
-		meta nfproto ipv6 meta l4proto ipv6-icmp limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Input"
+		ip6 saddr fe80::/10 icmpv6 type . icmpv6 code { 130 . 0, 131 . 0, 132 . 0, 143 . 0 } counter accept comment "!fw4: Allow-MLD"
+		meta nfproto ipv6 icmpv6 type { 128, 129, 1, 3, 133, 134 } limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Input"
+		meta nfproto ipv6 icmpv6 type . icmpv6 code { 2 . 0, 4 . 0, 4 . 1, 135 . 0, 136 . 0 } limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Input"
 		jump reject_from_wan
 	}
 
@@ -138,7 +122,8 @@ table inet fw4 {
 	}
 
 	chain forward_wan {
-		meta nfproto ipv6 meta l4proto ipv6-icmp limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Forward"
+		meta nfproto ipv6 icmpv6 type { 128, 129, 1, 3 } limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Forward"
+		meta nfproto ipv6 icmpv6 type . icmpv6 code { 2 . 0, 4 . 0, 4 . 1 } limit rate 1000/second counter accept comment "!fw4: Allow-ICMPv6-Forward"
 		meta l4proto esp counter jump accept_to_lan comment "!fw4: Allow-IPSec-ESP"
 		udp dport 500 counter jump accept_to_lan comment "!fw4: Allow-ISAKMP"
 		jump reject_to_wan
@@ -157,19 +142,16 @@ table inet fw4 {
 	}
 
 
-
 	#
 	# NAT rules
 	#
 
 	chain dstnat {
 		type nat hook prerouting priority dstnat; policy accept;
-
 	}
 
 	chain srcnat {
 		type nat hook postrouting priority srcnat; policy accept;
-
 		oifname "wan" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
 	}
 
@@ -184,13 +166,11 @@ table inet fw4 {
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-
 		iifname "br-lan" jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-
 	}
 
 	ct helper amanda {
@@ -241,7 +221,6 @@ table inet fw4 {
 		type "rtsp" protocol tcp;
 	}
 
-
 	chain helper_lan {
 		meta l4proto udp udp dport 10080 ct helper set "amanda" comment "!fw4: Amanda backup and archiving proto"
 		meta l4proto tcp tcp dport 21 ct helper set "ftp" comment "!fw4: FTP passive connection tracking"
@@ -258,24 +237,20 @@ table inet fw4 {
 	}
 
 
-
 	#
 	# Mangle rules
 	#
 
 	chain mangle_prerouting {
 		type filter hook prerouting priority mangle; policy accept;
-
 	}
 
 	chain mangle_output {
 		type filter hook output priority mangle; policy accept;
-
 	}
 
 	chain mangle_forward {
 		type filter hook forward priority mangle; policy accept;
-
 		iifname "wan" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 ingress MTU fixing"
 		oifname "wan" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 egress MTU fixing"
 	}

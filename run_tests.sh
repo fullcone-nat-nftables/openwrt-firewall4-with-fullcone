@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 
 line='........................................'
-uenv='{ "REQUIRE_SEARCH_PATH": [ "/usr/local/lib/ucode/*.so", "/usr/lib/ucode/*.so", "./tests/*.uc", "./root/usr/share/ucode/*.uc" ] }'
+uenv='{
+	"REQUIRE_SEARCH_PATH": [
+		"./tests/lib/*.uc",
+		"./root/usr/share/ucode/*.uc",
+		"/usr/local/lib/ucode/*.so",
+		"/usr/lib/ucode/*.so"
+	]
+}'
 
 extract_sections() {
 	local file=$1
@@ -30,6 +37,14 @@ extract_sections() {
 				outfile=$(printf "%s/%03d.%s" "$dir" $count "$tag")
 				printf "" > "$outfile"
 			;;
+			"-- File "*" --")
+				tag="file"
+				outfile="${line#-- File }"
+				outfile="$(echo "${outfile% --}" | xargs)"
+				outfile="$dir/files$(readlink -m "/${outfile:-file}")"
+				mkdir -p "$(dirname "$outfile")"
+				printf "" > "$outfile"
+			;;
 			"-- End --")
 				tag=""
 				outfile=""
@@ -55,7 +70,12 @@ run_testcase() {
 	local code=$7
 	local fail=0
 
-	ucode ${uenv:+-e "$uenv"} ${env:+-e "$(cat "$env")"} -i - <"$in" >"$dir/res.out" 2>"$dir/res.err"
+	ucode -m mocklib -m fw4 ${uenv:+-e "$uenv"} -e '{
+		"MOCK_SEARCH_PATH": [
+			"'"$dir"'/files",
+			"./tests/mocks"
+		]
+	}' ${env:+-e "$(cat "$env")"} -i - <"$in" >"$dir/res.out" 2>"$dir/res.err"
 
 	printf "%d\n" $? > "$dir/res.code"
 
@@ -157,13 +177,31 @@ run_test() {
 n_tests=0
 n_fails=0
 
+select_tests="$@"
+
+use_test() {
+	local input="$(readlink -f "$1")"
+	local test
+
+	[ -f "$input" ] || return 1
+	[ -n "$select_tests" ] || return 0
+
+	for test in "$select_tests"; do
+		test="$(readlink -f "$test")"
+
+		[ "$test" != "$input" ] || return 0
+	done
+
+	return 1
+}
+
 for catdir in tests/[0-9][0-9]_*; do
 	[ -d "$catdir" ] || continue
 
 	printf "\n##\n## Running %s tests\n##\n\n" "${catdir##*/[0-9][0-9]_}"
 
 	for testfile in "$catdir/"[0-9][0-9]_*; do
-		[ -f "$testfile" ] || continue
+		use_test "$testfile" || continue
 
 		n_tests=$((n_tests + 1))
 		run_test "$testfile" || n_fails=$((n_fails + 1))
@@ -171,3 +209,4 @@ for catdir in tests/[0-9][0-9]_*; do
 done
 
 printf "\nRan %d tests, %d okay, %d failures\n" $n_tests $((n_tests - n_fails)) $n_fails
+exit $n_fails

@@ -1,0 +1,207 @@
+Testing various option constraints.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "lan"
+		}
+	],
+	"rule": [
+		{
+			".description": "Helper rules require an explicit source zone",
+			"proto": "any",
+			"name": "Helper rule #1",
+			"target": "helper"
+		},
+		{
+			".description": "Helper rules require a set_helper option",
+			"proto": "any",
+			"name": "Helper rule #2",
+			"src": "lan",
+			"target": "helper"
+		},
+
+		{
+			".description": "Notrack rules require an explicit source zone",
+			"proto": "any",
+			"name": "Notrack rule",
+			"target": "notrack"
+		},
+
+		{
+			".description": "DSCP rules must not specify a destination",
+			"proto": "any",
+			"name": "DSCP rule #1",
+			"dest": "*",
+			"target": "dscp"
+		},
+		{
+			".description": "DSCP rules require a set_dscp option",
+			"proto": "any",
+			"name": "DSCP rule #2",
+			"target": "dscp"
+		},
+
+		{
+			".description": "Mark rules must not specify a destination",
+			"proto": "any",
+			"name": "Mark rule #1",
+			"dest": "*",
+			"target": "mark"
+		},
+		{
+			".description": "Mark rules require a set_xmark or set_mark option",
+			"proto": "any",
+			"name": "Mark rule #2",
+			"target": "mark"
+		},
+	]
+}
+-- End --
+
+-- Expect stderr --
+[!] Section @rule[0] (Helper rule #1) must specify a source zone for target 'helper'
+[!] Section @rule[1] (Helper rule #2) must specify option 'set_helper' for target 'helper'
+[!] Section @rule[2] (Notrack rule) must specify a source zone for target 'notrack'
+[!] Section @rule[3] (DSCP rule #1) must not specify option 'dest' for target 'dscp'
+[!] Section @rule[4] (DSCP rule #2) must specify option 'set_dscp' for target 'dscp'
+[!] Section @rule[5] (Mark rule #1) must not specify option 'dest' for target 'mark'
+[!] Section @rule[6] (Mark rule #2) must specify option 'set_mark' or 'set_xmark' for target 'mark'
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_lan {
+		jump drop_from_lan
+	}
+
+	chain output_lan {
+		jump drop_to_lan
+	}
+
+	chain forward_lan {
+		jump drop_to_lan
+	}
+
+	chain drop_from_lan {
+	}
+
+	chain drop_to_lan {
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+	chain helper_lan {
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --
