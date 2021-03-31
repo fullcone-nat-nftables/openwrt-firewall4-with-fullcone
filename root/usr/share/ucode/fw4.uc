@@ -510,6 +510,9 @@ return {
 
 		this.cursor.foreach("firewall", "defaults", d => self.parse_defaults(d));
 
+		if (!this.state.defaults)
+			this.parse_defaults({});
+
 
 		//
 		// Build list of ipsets
