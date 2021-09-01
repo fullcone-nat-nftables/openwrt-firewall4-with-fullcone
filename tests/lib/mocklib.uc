@@ -1,6 +1,9 @@
 {%
 	let _fs = require("fs");
 
+	/* Force reloading fs module on next require */
+	delete global.modules.fs;
+
 	let _log = (level, fmt, ...args) => {
 		let color, prefix;
 
@@ -221,4 +224,6 @@
 		else
 			global.print(...args);
 	};
+
+	return global.mocklib;
 

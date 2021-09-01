@@ -70,12 +70,12 @@ run_testcase() {
 	local code=$7
 	local fail=0
 
-	ucode -m mocklib -m fw4 ${uenv:+-e "$uenv"} -e '{
+	ucode ${uenv:+-e "$uenv"} -e '{
 		"MOCK_SEARCH_PATH": [
 			"'"$dir"'/files",
 			"./tests/mocks"
 		]
-	}' ${env:+-e "$(cat "$env")"} -i - <"$in" >"$dir/res.out" 2>"$dir/res.err"
+	}' ${env:+-e "$(cat "$env")"} -m mocklib -m fw4 -i - <"$in" >"$dir/res.out" 2>"$dir/res.err"
 
 	printf "%d\n" $? > "$dir/res.code"
 
