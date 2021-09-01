@@ -1648,7 +1648,7 @@ return {
 		if (defs.synflood_protect === null)
 			defs.synflood_protect = defs.syn_flood;
 
-		delete(defs, "syn_flood");
+		delete defs.syn_flood;
 
 		this.state.defaults = defs;
 	},
@@ -2039,10 +2039,10 @@ return {
 			};
 
 			if (!length(r.icmp_types))
-				delete(r, "icmp_types");
+				delete r.icmp_types;
 
 			if (!length(r.icmp_codes))
-				delete(r, "icmp_codes");
+				delete r.icmp_codes;
 
 			if (r.set_mark) {
 				r.set_xmark = {
@@ -2051,7 +2051,7 @@ return {
 					mask:   r.set_mark.mark | r.set_mark.mask
 				};
 
-				delete(r, "set_mark");
+				delete r.set_mark;
 			}
 
 			let set_types = map_setmatch(ipset, rule.ipset, proto.name);

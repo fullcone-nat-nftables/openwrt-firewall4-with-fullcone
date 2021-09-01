@@ -56,10 +56,10 @@ table inet fw4 {
 {% if (fw4.default_option("synflood_protect")): %}
 		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
 {% endif %}
-{% for (local rule in fw4.rules("input")): %}
+{% for (let rule in fw4.rules("input")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-{% for (local zone in fw4.zones()): for (local rule in zone.match_rules): %}
+{% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
 		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "input" }) %}
 {% endfor; endfor %}
 {% if (fw4.input_policy() == "reject"): %}
@@ -74,10 +74,10 @@ table inet fw4 {
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
 {% endif %}
-{% for (local rule in fw4.rules("forward")): %}
+{% for (let rule in fw4.rules("forward")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-{% for (local zone in fw4.zones()): for (local rule in zone.match_rules): %}
+{% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
 		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "forward" }) %}
 {% endfor; endfor %}
 {% if (fw4.forward_policy() == "reject"): %}
@@ -94,10 +94,10 @@ table inet fw4 {
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
 {% endif %}
-{% for (local rule in fw4.rules("output")): %}
+{% for (let rule in fw4.rules("output")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-{% for (local zone in fw4.zones()): for (local rule in zone.match_rules): %}
+{% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
 		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "output" }) %}
 {% endfor; endfor %}
 {% if (fw4.output_policy() == "reject"): %}
@@ -119,8 +119,8 @@ table inet fw4 {
 	}
 
 {% if (fw4.default_option("synflood_protect")):
-	local r = fw4.default_option("synflood_rate");
-	local b = fw4.default_option("synflood_burst");
+	let r = fw4.default_option("synflood_rate");
+	let b = fw4.default_option("synflood_burst");
 %}
 	chain syn_flood {
 		tcp flags & (fin | syn | rst | ack) == syn
@@ -130,9 +130,9 @@ table inet fw4 {
 	}
 
 {% endif %}
-{% for (local zone in fw4.zones()): %}
+{% for (let zone in fw4.zones()): %}
 	chain input_{{ zone.name }} {
-{%  for (local rule in fw4.rules("input_"+zone.name)): %}
+{%  for (let rule in fw4.rules("input_"+zone.name)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 {%  if (zone.dflags.dnat): %}
@@ -142,14 +142,14 @@ table inet fw4 {
 	}
 
 	chain output_{{ zone.name }} {
-{%  for (local rule in fw4.rules("output_"+zone.name)): %}
+{%  for (let rule in fw4.rules("output_"+zone.name)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 		jump {{ zone.output }}_to_{{ zone.name }}
 	}
 
 	chain forward_{{ zone.name }} {
-{%  for (local rule in fw4.rules("forward_"+zone.name)): %}
+{%  for (let rule in fw4.rules("forward_"+zone.name)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 {%  if (zone.dflags.dnat): %}
@@ -158,10 +158,10 @@ table inet fw4 {
 		jump {{ zone.forward }}_to_{{ zone.name }}
 	}
 
-{%  for (local verdict in ["accept", "reject", "drop"]): %}
+{%  for (let verdict in ["accept", "reject", "drop"]): %}
 {%   if (zone.sflags[verdict]): %}
 	chain {{ verdict }}_from_{{ zone.name }} {
-{%    for (local rule in zone.match_rules): %}
+{%    for (let rule in zone.match_rules): %}
 		{%+ include("zone-verdict.uc", { fw4, zone, rule, egress: false, verdict }) %}
 {%    endfor %}
 	}
@@ -169,7 +169,7 @@ table inet fw4 {
 {%   endif %}
 {%   if (zone.dflags[verdict]): %}
 	chain {{ verdict }}_to_{{ zone.name }} {
-{%   for (local rule in zone.match_rules): %}
+{%   for (let rule in zone.match_rules): %}
 		{%+ include("zone-verdict.uc", { fw4, zone, rule, egress: true, verdict }) %}
 {%   endfor %}
 	}

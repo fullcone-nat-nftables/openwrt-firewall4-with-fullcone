@@ -1,6 +1,6 @@
 {%+
-	local devs = fw4.filter_loopback_devs(fw4.devices_pos, output),
-	      nets = fw4.filter_loopback_addrs(fw4.subnets_pos, output);
+	let devs = fw4.filter_loopback_devs(fw4.devices_pos, output),
+	    nets = fw4.filter_loopback_addrs(fw4.subnets_pos, output);
 
 	if (!((output && (length(devs) || length(nets))) ||
 	      (!output && (rule.devices_neg || rule.subnets_neg || length(devs) || length(nets)))))

@@ -62,7 +62,7 @@
 
 		error: function() {
 			let e = this._error;
-			delete(this._error);
+			delete this._error;
 
 			return e;
 		}
