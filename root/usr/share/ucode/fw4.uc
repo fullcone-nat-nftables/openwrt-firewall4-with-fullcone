@@ -1639,7 +1639,7 @@ return {
 			custom_chains: [ "bool", null, UNSUPPORTED ],
 			disable_ipv6: [ "bool", null, UNSUPPORTED ],
 			flow_offloading: [ "bool", "0" ],
-			flow_offloading_hw: [ "bool", null, UNSUPPORTED ]
+			flow_offloading_hw: [ "bool", "0" ]
 		});
 
 		if (defs === false) {
