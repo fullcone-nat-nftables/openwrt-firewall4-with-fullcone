@@ -95,9 +95,13 @@ function reload_sets() {
 }
 
 function render_ruleset(use_statefile) {
+	let devices = {};
+
 	fw4.load(use_statefile);
 
-	include("templates/ruleset.uc", { fw4, type, exists, length, include });
+	map(fw4.zones(), zone => push(devices, ...zone.match_devices));
+
+	include("templates/ruleset.uc", { fw4, type, exists, length, include, devices: sort(devices) });
 }
 
 function lookup_network(net) {
