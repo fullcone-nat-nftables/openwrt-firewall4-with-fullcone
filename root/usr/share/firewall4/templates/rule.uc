@@ -28,7 +28,7 @@
 	{{ (rule.family == 4) ? "icmp" : "icmpv6" }} type {{ fw4.set(rule.icmp_types) }} {%+ endif -%}
 {%+ if (rule.icmp_codes): -%}
 	{{ (rule.family == 4) ? "icmp" : "icmpv6" }} type . {{ (rule.family == 4) ? "icmp" : "icmpv6" }} code {{
-		fw4.set(rule.icmp_codes)
+		fw4.set(rule.icmp_codes, true)
 	}} {%+ endif -%}
 {%+ if (rule.helper): -%}
 	ct helper{% if (rule.helper.invert): %} !={% endif %} {{ fw4.quote(rule.helper.name, true) }} {%+ endif -%}
