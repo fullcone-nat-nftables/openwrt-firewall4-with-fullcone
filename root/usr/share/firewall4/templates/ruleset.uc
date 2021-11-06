@@ -27,6 +27,9 @@ table inet fw4 {
 {%  if (set.maxelem > 0): %}
 		size {{ set.maxelem }}
 {%  endif %}
+{%  if (set.timeout >= 0): %}
+		timeout {{ set.timeout }}s
+{% endif %}
 {%  if (set.interval): %}
 		flags interval
 {%  endif %}

@@ -2728,7 +2728,7 @@ return {
 			netmask: [ "int", null, UNSUPPORTED ],
 			maxelem: [ "int" ],
 			hashsize: [ "int", null, UNSUPPORTED ],
-			timeout: [ "int", null, UNSUPPORTED ],
+			timeout: [ "int", "-1" ],
 
 			external: [ "string", null, UNSUPPORTED ],
 
