@@ -1268,21 +1268,28 @@ return {
 		for (let i, t in set.types) {
 			switch (t) {
 			case 'ipv4_addr':
-				ip = iptoarr(values[i]);
+				ip = filter(this.parse_subnet(values[i]), a => (a.family == 4));
 
-				if (length(ip) != 4)
-					return null;
+				switch (length(ip)) {
+				case 0: return null;
+				case 1: break;
+				default: this.warn("Set entry '%s' resolves to multiple addresses, using first one", values[i]);
+				}
 
-				rv[i] = arrtoip(ip);
+				rv[i] = ("net" in set.fw4types) ? ip[0].addr + "/" + ip[0].bits : ip[0].addr;
 				break;
 
 			case 'ipv6_addr':
-				ip = iptoarr(values[i]);
+				ip = filter(this.parse_subnet(values[i]), a => (a.family == 6));
 
-				if (length(ip) != 16)
-					return null;
+				switch(length(ip)) {
+				case 0: return null;
+				case 1: break;
+				case 2: this.warn("Set entry '%s' resolves to multiple addresses, using first one", values[i]);
+				}
 
-				rv[i] = arrtoip(ip);
+				rv[i] = ("net" in set.fw4types) ? ip[0].addr + "/" + ip[0].bits : ip[0].addr;
+
 				break;
 
 			case 'ether_addr':
@@ -2773,6 +2780,8 @@ return {
 
 		let s = {
 			...ipset,
+
+			fw4types: types,
 
 			types: map(types, (t) => {
 				switch (t) {
