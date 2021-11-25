@@ -1642,11 +1642,6 @@ return {
 			flow_offloading_hw: [ "bool", "0" ]
 		});
 
-		if (defs === false) {
-			this.warn_section(data, "skipped due to invalid options");
-			return;
-		}
-
 		if (defs.synflood_protect === null)
 			defs.synflood_protect = defs.syn_flood;
 
