@@ -11,6 +11,7 @@ let FLATTEN_LIST = 0x02;
 let NO_INVERT    = 0x04;
 let UNSUPPORTED  = 0x08;
 let REQUIRED     = 0x10;
+let DEPRECATED   = 0x20;
 
 let ipv4_icmptypes = {
 	"any": [ 0xFF, 0, 0xFF ],
@@ -622,7 +623,9 @@ return {
 			}
 
 			if (res != null) {
-				if (flags & UNSUPPORTED)
+				if (flags & DEPRECATED)
+					this.warn_section(s, "option '" + key + "' is deprecated by fw4");
+				else if (flags & UNSUPPORTED)
 					this.warn_section(s, "option '" + key + "' is not supported by fw4");
 				else
 					rv[key] = res;
