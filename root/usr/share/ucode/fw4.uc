@@ -1921,6 +1921,7 @@ return {
 			enabled: [ "bool", "1" ],
 
 			name: [ "string", this.section_id(data[".name"]) ],
+			_name: [ "string", null, DEPRECATED ],
 			family: [ "family" ],
 
 			src: [ "zone_ref" ],
@@ -2201,6 +2202,7 @@ return {
 			enabled: [ "bool", "1" ],
 
 			name: [ "string", this.section_id(data[".name"]) ],
+			_name: [ "string", null, DEPRECATED ],
 			family: [ "family", "4" ],
 
 			src: [ "zone_ref" ],
