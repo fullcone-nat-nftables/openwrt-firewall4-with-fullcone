@@ -378,7 +378,8 @@ return {
 			for (let ifc in ifaces.interface) {
 				let net = {
 					up: ifc.up,
-					device: ifc.l3_device
+					device: ifc.l3_device,
+					zone: ifc.data?.zone
 				};
 
 				if (type(ifc["ipv4-address"]) == "array") {
@@ -1718,9 +1719,15 @@ return {
 
 		let match_devices = [];
 		let related_subnets = [];
+		let related_ubus_networks = [];
 		let match_subnets, masq_src_subnets, masq_dest_subnets;
 
-		for (let e in to_array(zone.network)) {
+		for (let name, net in this.state.networks) {
+			if (net.zone === zone.name)
+				push(related_ubus_networks, { invert: false, device: name });
+		}
+
+		for (let e in [ ...to_array(zone.network), ...related_ubus_networks ]) {
 			if (exists(this.state.networks, e.device)) {
 				let net = this.state.networks[e.device];
 
