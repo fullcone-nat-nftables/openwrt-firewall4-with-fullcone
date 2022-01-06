@@ -1405,7 +1405,9 @@ return {
 	},
 
 	set: function(v, force) {
-		v = to_array(v);
+		let seen = {};
+
+		v = filter(to_array(v), item => !seen[item]++);
 
 		if (force || length(v) != 1)
 			return sprintf('{ %s }', join(', ', map(v, this.quote)));
