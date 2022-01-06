@@ -635,7 +635,6 @@ return {
 		for (let opt in s) {
 			if (index(opt, '.') != 0 && opt != 'type' && !exists(spec, opt)) {
 				this.warn_section(s, "specifies unknown option '" + opt + "'");
-				return false;
 			}
 		}
 
