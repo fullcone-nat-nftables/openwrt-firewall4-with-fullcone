@@ -95,7 +95,7 @@ function reload_sets() {
 }
 
 function render_ruleset(use_statefile) {
-	let devices = {};
+	let devices = [];
 
 	fw4.load(use_statefile);
 
