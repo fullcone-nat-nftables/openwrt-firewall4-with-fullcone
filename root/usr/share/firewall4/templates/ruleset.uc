@@ -89,8 +89,7 @@ table inet fw4 {
 		type filter hook forward priority filter; policy {{ fw4.forward_policy(true) }};
 
 {% if (fw4.default_option("flow_offloading") && length(devices) > 0): %}
-		ip protocol { tcp , udp } flow offload @ft;
-		ip6 nexthdr { tcp , udp } flow offload @ft;
+		meta l4proto { tcp, udp } flow offload @ft;
 {% endif %}
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
 {% if (fw4.default_option("drop_invalid")): %}
