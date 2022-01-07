@@ -5,7 +5,8 @@
 		"forward": "REJECT",
 		"input": "ACCEPT",
 		"output": "ACCEPT",
-		"syn_flood": "1"
+		"syn_flood": "1",
+		"unknown_defaults_option": "foo"
 	},
 	"zone": [
 		{

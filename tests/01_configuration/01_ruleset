@@ -284,6 +284,7 @@ table inet fw4 {
 [call] fs.stat path </sys/module/nf_conntrack_snmp>
 [call] fs.stat path </sys/module/nf_conntrack_tftp>
 [call] fs.stat path </sys/module/nf_conntrack_rtsp>
+[!] Section @defaults[0] specifies unknown option 'unknown_defaults_option'
 [call] fs.open path </sys/class/net/br-lan/flags> mode <r>
 [call] fs.open path </sys/class/net/br-lan/flags> mode <r>
 -- End --
