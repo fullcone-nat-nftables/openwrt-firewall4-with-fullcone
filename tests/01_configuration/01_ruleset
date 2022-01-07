@@ -21,6 +21,16 @@ flush table inet fw4
 
 table inet fw4 {
 	#
+	# Flowtable
+	#
+
+	flowtable ft {
+		hook ingress priority 0;
+		devices = { "br-lan", "wan" };
+		flags offload;
+	}
+
+	#
 	# Set definitions
 	#
 
@@ -59,6 +69,7 @@ table inet fw4 {
 	chain forward {
 		type filter hook forward priority filter; policy drop;
 
+		meta l4proto { tcp, udp } flow offload @ft;
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
 		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
 		iifname "wan" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
