@@ -82,6 +82,7 @@ table inet fw4 {
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		meta l4proto tcp counter comment "!fw4: Test-Deprecated-Rule-Option"
 		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
 		oifname "wan" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 	}
@@ -285,6 +286,7 @@ table inet fw4 {
 [call] fs.stat path </sys/module/nf_conntrack_tftp>
 [call] fs.stat path </sys/module/nf_conntrack_rtsp>
 [!] Section @defaults[0] specifies unknown option 'unknown_defaults_option'
+[!] Section @rule[9] (Test-Deprecated-Rule-Option) option '_name' is deprecated by fw4
 [call] fs.open path </sys/class/net/br-lan/flags> mode <r>
 [call] fs.open path </sys/class/net/br-lan/flags> mode <r>
 -- End --

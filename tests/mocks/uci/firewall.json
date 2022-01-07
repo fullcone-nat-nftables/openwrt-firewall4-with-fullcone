@@ -114,6 +114,11 @@
 			"dest": "lan",
 			"dest_port": "500",
 			"target": "ACCEPT"
+		},
+		{
+			"name": "Test-Deprecated-Rule-Option",
+			"_name": "Test-Deprecated-Rule-Option",
+			"proto": "tcp"
 		}
 	]
 }
