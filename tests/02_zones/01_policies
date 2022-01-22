@@ -1,0 +1,243 @@
+Testing that zone policies are properly mapped to chains.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_zone1_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone2_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone3_flags.txt --
+0x1103
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			".description": "Zone accept policies should map to accept rules from/to covered interfaces",
+			"name": "test1",
+			"input": "ACCEPT",
+			"output": "ACCEPT",
+			"forward": "ACCEPT",
+			"device": "zone1"
+		},
+		{
+			".description": "Zone drop policies should map to drop rules from/to covered interfaces",
+			"name": "test2",
+			"input": "DROP",
+			"output": "DROP",
+			"forward": "DROP",
+			"device": "zone2"
+		},
+		{
+			".description": "Zone reject policies should map to reject rules from/to covered interfaces",
+			"name": "test3",
+			"input": "REJECT",
+			"output": "REJECT",
+			"forward": "REJECT",
+			"device": "zone3"
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define test1_devices = { "zone1" }
+	define test2_devices = { "zone2" }
+	define test3_devices = { "zone3" }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "zone1" jump input_test1 comment "!fw4: Handle test1 IPv4/IPv6 input traffic"
+		iifname "zone2" jump input_test2 comment "!fw4: Handle test2 IPv4/IPv6 input traffic"
+		iifname "zone3" jump input_test3 comment "!fw4: Handle test3 IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "zone1" jump forward_test1 comment "!fw4: Handle test1 IPv4/IPv6 forward traffic"
+		iifname "zone2" jump forward_test2 comment "!fw4: Handle test2 IPv4/IPv6 forward traffic"
+		iifname "zone3" jump forward_test3 comment "!fw4: Handle test3 IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "zone1" jump output_test1 comment "!fw4: Handle test1 IPv4/IPv6 output traffic"
+		oifname "zone2" jump output_test2 comment "!fw4: Handle test2 IPv4/IPv6 output traffic"
+		oifname "zone3" jump output_test3 comment "!fw4: Handle test3 IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test1 {
+		jump accept_from_test1
+	}
+
+	chain output_test1 {
+		jump accept_to_test1
+	}
+
+	chain forward_test1 {
+		jump accept_to_test1
+	}
+
+	chain accept_from_test1 {
+		iifname "zone1" counter accept comment "!fw4: accept test1 IPv4/IPv6 traffic"
+	}
+
+	chain accept_to_test1 {
+		oifname "zone1" counter accept comment "!fw4: accept test1 IPv4/IPv6 traffic"
+	}
+
+	chain input_test2 {
+		jump drop_from_test2
+	}
+
+	chain output_test2 {
+		jump drop_to_test2
+	}
+
+	chain forward_test2 {
+		jump drop_to_test2
+	}
+
+	chain drop_from_test2 {
+		iifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test2 {
+		oifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain input_test3 {
+		jump reject_from_test3
+	}
+
+	chain output_test3 {
+		jump reject_to_test3
+	}
+
+	chain forward_test3 {
+		jump reject_to_test3
+	}
+
+	chain reject_from_test3 {
+		iifname "zone3" counter jump handle_reject comment "!fw4: reject test3 IPv4/IPv6 traffic"
+	}
+
+	chain reject_to_test3 {
+		oifname "zone3" counter jump handle_reject comment "!fw4: reject test3 IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "zone1" jump helper_test1 comment "!fw4: test1 IPv4/IPv6 CT helper assignment"
+		iifname "zone2" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
+		iifname "zone3" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+	chain helper_test1 {
+	}
+
+	chain helper_test2 {
+	}
+
+	chain helper_test3 {
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --

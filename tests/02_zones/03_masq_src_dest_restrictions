@@ -1,0 +1,247 @@
+Testing that zone masquerading restrictions source and destination restrictions are properly applied.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_zone1_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone2_flags.txt --
+0x1103
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			".description": "Positive and negative entries should be handled properly and IPv6 addresses should be filtered out for IPv4 masquerading",
+			"name": "test1",
+			"input": "ACCEPT",
+			"output": "ACCEPT",
+			"forward": "ACCEPT",
+			"device": "zone1",
+			"masq": "1",
+			"masq_src": [
+				"10.1.0.0/24",
+				"10.1.1.1",
+				"!10.1.0.1",
+				"!10.1.0.2",
+				"2001:db8:0:1::/64",
+				"2001:db8:0:2::/64",
+				"!2001:db8:0:1::1",
+				"!2001:db8:0:1::2"
+			],
+			"masq_dest": [
+				"10.2.0.0/24",
+				"10.2.1.1",
+				"!10.2.0.1",
+				"!10.2.0.2",
+				"2001:db8:1:1::/64",
+				"2001:db8:1:2::/64",
+				"!2001:db8:1:1::1",
+				"!2001:db8:1:1::2"
+			]
+		},
+		{
+			".description": "Positive and negative entries should be handled properly and IPv4 addresses should be filtered out for IPv6 masquerading",
+			"name": "test2",
+			"input": "DROP",
+			"output": "DROP",
+			"forward": "DROP",
+			"device": "zone2",
+			"masq6": "1",
+			"masq_src": [
+				"10.1.0.0/24",
+				"10.1.1.1",
+				"!10.1.0.1",
+				"!10.1.0.2",
+				"2001:db8:0:1::/64",
+				"2001:db8:0:2::/64",
+				"!2001:db8:0:1::1",
+				"!2001:db8:0:1::2"
+			],
+			"masq_dest": [
+				"10.2.0.0/24",
+				"10.2.1.1",
+				"!10.2.0.1",
+				"!10.2.0.2",
+				"2001:db8:1:1::/64",
+				"2001:db8:1:2::/64",
+				"!2001:db8:1:1::1",
+				"!2001:db8:1:1::2"
+			]
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define test1_devices = { "zone1" }
+	define test2_devices = { "zone2" }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "zone1" jump input_test1 comment "!fw4: Handle test1 IPv4/IPv6 input traffic"
+		iifname "zone2" jump input_test2 comment "!fw4: Handle test2 IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "zone1" jump forward_test1 comment "!fw4: Handle test1 IPv4/IPv6 forward traffic"
+		iifname "zone2" jump forward_test2 comment "!fw4: Handle test2 IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "zone1" jump output_test1 comment "!fw4: Handle test1 IPv4/IPv6 output traffic"
+		oifname "zone2" jump output_test2 comment "!fw4: Handle test2 IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test1 {
+		jump accept_from_test1
+	}
+
+	chain output_test1 {
+		jump accept_to_test1
+	}
+
+	chain forward_test1 {
+		jump accept_to_test1
+	}
+
+	chain accept_from_test1 {
+		iifname "zone1" counter accept comment "!fw4: accept test1 IPv4/IPv6 traffic"
+	}
+
+	chain accept_to_test1 {
+		oifname "zone1" counter accept comment "!fw4: accept test1 IPv4/IPv6 traffic"
+	}
+
+	chain input_test2 {
+		jump drop_from_test2
+	}
+
+	chain output_test2 {
+		jump drop_to_test2
+	}
+
+	chain forward_test2 {
+		jump drop_to_test2
+	}
+
+	chain drop_from_test2 {
+		iifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test2 {
+		oifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "zone1" jump srcnat_test1 comment "!fw4: Handle test1 IPv4/IPv6 srcnat traffic"
+		oifname "zone2" jump srcnat_test2 comment "!fw4: Handle test2 IPv4/IPv6 srcnat traffic"
+	}
+
+	chain srcnat_test1 {
+		meta nfproto ipv4 ip saddr { 10.1.0.0/24, 10.1.1.1 } ip saddr != { 10.1.0.1, 10.1.0.2 } ip daddr { 10.2.0.0/24, 10.2.1.1 } ip daddr != { 10.2.0.1, 10.2.0.2 } masquerade comment "!fw4: Masquerade IPv4 test1 traffic"
+	}
+
+	chain srcnat_test2 {
+		meta nfproto ipv6 ip6 saddr { 2001:db8:0:1::/64, 2001:db8:0:2::/64 } ip6 saddr != { 2001:db8:0:1::1, 2001:db8:0:1::2 } ip6 daddr { 2001:db8:1:1::/64, 2001:db8:1:2::/64 } ip6 daddr != { 2001:db8:1:1::1, 2001:db8:1:1::2 } masquerade comment "!fw4: Masquerade IPv6 test2 traffic"
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --

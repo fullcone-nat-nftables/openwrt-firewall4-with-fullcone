@@ -1680,6 +1680,8 @@ return {
 			masq_src: [ "network", null, PARSE_LIST ],
 			masq_dest: [ "network", null, PARSE_LIST ],
 
+			masq6: [ "bool" ],
+
 			extra: [ "string", null, UNSUPPORTED ],
 			extra_src: [ "string", null, UNSUPPORTED ],
 			extra_dest: [ "string", null, UNSUPPORTED ],
