@@ -47,30 +47,16 @@ Testing various option constraints.
 		},
 
 		{
-			".description": "DSCP rules must not specify a destination",
-			"proto": "any",
-			"name": "DSCP rule #1",
-			"dest": "*",
-			"target": "dscp"
-		},
-		{
 			".description": "DSCP rules require a set_dscp option",
 			"proto": "any",
-			"name": "DSCP rule #2",
+			"name": "DSCP rule #1",
 			"target": "dscp"
 		},
 
 		{
-			".description": "Mark rules must not specify a destination",
-			"proto": "any",
-			"name": "Mark rule #1",
-			"dest": "*",
-			"target": "mark"
-		},
-		{
 			".description": "Mark rules require a set_xmark or set_mark option",
 			"proto": "any",
-			"name": "Mark rule #2",
+			"name": "Mark rule #1",
 			"target": "mark"
 		},
 	]
@@ -81,10 +67,8 @@ Testing various option constraints.
 [!] Section @rule[0] (Helper rule #1) must specify a source zone for target 'helper'
 [!] Section @rule[1] (Helper rule #2) must specify option 'set_helper' for target 'helper'
 [!] Section @rule[2] (Notrack rule) must specify a source zone for target 'notrack'
-[!] Section @rule[3] (DSCP rule #1) must not specify option 'dest' for target 'dscp'
-[!] Section @rule[4] (DSCP rule #2) must specify option 'set_dscp' for target 'dscp'
-[!] Section @rule[5] (Mark rule #1) must not specify option 'dest' for target 'mark'
-[!] Section @rule[6] (Mark rule #2) must specify option 'set_mark' or 'set_xmark' for target 'mark'
+[!] Section @rule[3] (DSCP rule #1) must specify option 'set_dscp' for target 'dscp'
+[!] Section @rule[4] (Mark rule #1) must specify option 'set_mark' or 'set_xmark' for target 'mark'
 -- End --
 
 -- Expect stdout --
@@ -194,6 +178,14 @@ table inet fw4 {
 
 	chain mangle_prerouting {
 		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
 	}
 
 	chain mangle_output {

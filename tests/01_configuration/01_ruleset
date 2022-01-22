@@ -257,6 +257,14 @@ table inet fw4 {
 		type filter hook prerouting priority mangle; policy accept;
 	}
 
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
 	chain mangle_output {
 		type filter hook output priority mangle; policy accept;
 	}

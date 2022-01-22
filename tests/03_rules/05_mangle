@@ -1,0 +1,308 @@
+Ensure that DSCP and MARK target rules end up in the appropriate chains,
+depending on the src and dest options.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_eth0_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_eth1_flags.txt --
+0x1103
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "lan",
+			"device": "eth0"
+		},
+		{
+			"name": "wan",
+			"device": "eth1"
+		}
+	],
+	"rule": [
+		{
+			".description": "Source '*' and destination '*' should result in a forward rule",
+			"name": "Mangle rule #1",
+			"src": "*",
+			"dest": "*",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "Source zone and destination zone should result in a forward rule",
+			"name": "Mangle rule #2",
+			"src": "lan",
+			"dest": "wan",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "Any source zone and specific destination zone should result in a postrouting rule",
+			"name": "Mangle rule #3",
+			"src": "*",
+			"dest": "wan",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "Specific source zone and any destination zone should result in a prerouting rule",
+			"name": "Mangle rule #4",
+			"src": "lan",
+			"dest": "*",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "Specific source zone and no destination zone should result in an input rule",
+			"name": "Mangle rule #5",
+			"src": "lan",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "Any source zone and no destination zone should result in an input rule",
+			"name": "Mangle rule #6",
+			"src": "*",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "No source zone and no destination zone should result in an output rule",
+			"name": "Mangle rule #7",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "No source zone and any destination zone should result in an output rule",
+			"name": "Mangle rule #8",
+			"dest": "*",
+			"target": "DSCP",
+			"set_dscp": "1"
+		},
+		{
+			".description": "No source zone and specific destination zone should result in an output rule",
+			"name": "Mangle rule #9",
+			"dest": "wan",
+			"target": "DSCP",
+			"set_dscp": "1"
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define lan_devices = { "eth0" }
+	define wan_devices = { "eth1" }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "eth0" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
+		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "eth0" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
+		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "eth0" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
+		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_lan {
+		jump drop_from_lan
+	}
+
+	chain output_lan {
+		jump drop_to_lan
+	}
+
+	chain forward_lan {
+		jump drop_to_lan
+	}
+
+	chain drop_from_lan {
+		iifname "eth0" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_lan {
+		oifname "eth0" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+	}
+
+	chain input_wan {
+		jump drop_from_wan
+	}
+
+	chain output_wan {
+		jump drop_to_wan
+	}
+
+	chain forward_wan {
+		jump drop_to_wan
+	}
+
+	chain drop_from_wan {
+		iifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_wan {
+		oifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "eth0" jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
+		iifname "eth1" jump helper_wan comment "!fw4: wan IPv4/IPv6 CT helper assignment"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+	chain helper_lan {
+	}
+
+	chain helper_wan {
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #4"
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #3"
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #6"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #6"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #6"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #6"
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #7"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #7"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #7"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #7"
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #8"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #8"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #8"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #8"
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #9"
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #1"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #1"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #1"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #1"
+		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #2"
+	}
+}
+-- End --

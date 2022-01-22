@@ -1997,10 +1997,6 @@ return {
 			this.warn_section(data, "must specify a source zone for target '" + rule.target + "'");
 			return;
 		}
-		else if (rule.target in ["dscp", "mark"] && rule.dest) {
-			this.warn_section(data, "must not specify option 'dest' for target '" + rule.target + "'");
-			return;
-		}
 		else if (rule.target == "dscp" && !rule.set_dscp) {
 			this.warn_section(data, "must specify option 'set_dscp' for target 'dscp'");
 			return;
@@ -2088,13 +2084,22 @@ return {
 				r.src.zone.dflags.helper = true;
 			}
 			else if (r.target == "mark" || r.target == "dscp") {
-				if (r.src) {
+				if ((r.src?.any && r.dest?.any) || (r.src?.zone && r.dest?.zone))
+					r.chain = "mangle_forward";
+				else if (r.src?.any && r.dest?.zone)
+					r.chain = "mangle_postrouting";
+				else if (r.src?.zone && r.dest?.any)
 					r.chain = "mangle_prerouting";
-					r.src.zone.dflags[r.target] = true;
-				}
-				else {
+				else if (r.src && !r.dest)
+					r.chain = "mangle_input";
+				else
 					r.chain = "mangle_output";
-				}
+
+				if (r.src?.zone)
+					r.src.zone.dflags[r.target] = true;
+
+				if (r.dest?.zone)
+					r.dest.zone.dflags[r.target] = true;
 			}
 			else {
 				r.chain = "output";

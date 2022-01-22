@@ -360,6 +360,20 @@ table inet fw4 {
 {% endfor %}
 	}
 
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+{% for (let rule in fw4.rules("mangle_postrouting")): %}
+		{%+ include("rule.uc", { fw4, rule }) %}
+{% endfor %}
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+{% for (let rule in fw4.rules("mangle_input")): %}
+		{%+ include("rule.uc", { fw4, rule }) %}
+{% endfor %}
+	}
+
 	chain mangle_output {
 		type filter hook output priority mangle; policy accept;
 {% for (let rule in fw4.rules("mangle_output")): %}
@@ -369,6 +383,9 @@ table inet fw4 {
 
 	chain mangle_forward {
 		type filter hook forward priority mangle; policy accept;
+{% for (let rule in fw4.rules("mangle_forward")): %}
+		{%+ include("rule.uc", { fw4, rule }) %}
+{% endfor %}
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.mtu_fix): %}
 {%   for (let rule in zone.match_rules): %}
