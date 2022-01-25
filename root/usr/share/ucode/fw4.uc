@@ -220,6 +220,16 @@ function filter_neg(x) {
 	return length(rv) ? rv : null;
 }
 
+function filter_neg_nonwildcard(x) {
+	let rv = filter(x, e => e.invert && !e.wildcard);
+	return length(rv) ? rv : null;
+}
+
+function filter_neg_wildcard(x) {
+	let rv = filter(x, e => e.invert && e.wildcard);
+	return length(rv) ? rv : null;
+}
+
 function subnets_split_af(x) {
 	let rv = [];
 
@@ -1760,7 +1770,8 @@ return {
 			r.family = family;
 
 			r.devices_pos = map(filter_pos(devices), d => d.device);
-			r.devices_neg = map(filter_neg(devices), d => d.device);
+			r.devices_neg = map(filter_neg_nonwildcard(devices), d => d.device);
+			r.devices_neg_wildcard = map(filter_neg_wildcard(devices), d => d.device);
 
 			r.subnets_pos = map(filter_pos(subnets), this.cidr);
 			r.subnets_neg = map(filter_neg(subnets), this.cidr);
@@ -1772,18 +1783,74 @@ return {
 			zone.helper, "ct helper"
 		]);
 
+		// group non-inverted device matches into wildcard and non-wildcard ones
+		let wildcard_devices = [], plain_devices = [], match_all_devices = false;
+
+		for (let device in match_devices) {
+			let m = match(device.device, /^([^+]*)(\+)?$/);
+
+			if (!m) {
+				this.warn_section(data, "skipping invalid wildcard pattern '" + device.device + '"');
+				continue;
+			}
+
+			// filter `+` (match any device) since nftables does not support
+			// wildcard only matches
+			if (!device.invert && m[0] == '+') {
+				match_all_devices = true;
+				continue;
+			}
+
+			// replace inverted `+` (match no device) with invalid pattern
+			if (device.invert && m[0] == '+') {
+				device.device = '/never/';
+				device.invert = false;
+			}
+
+			// replace "name+" matches with "name*"
+			else if (m[2] == '+')
+				device.device = m[1] + '*';
+
+			device.wildcard = !!m[2];
+
+			if (!device.invert && device.wildcard)
+				push(wildcard_devices, device);
+			else
+				push(plain_devices, device);
+		}
+
+		// loop wildcard devices
+		for (let wildcard_device in wildcard_devices) {
+			// cover this wildcard and any inverted wildcard or non-wildcard interface
+			let devices = [ wildcard_device, ...(filter_neg(plain_devices) || []) ];
+
+			// check if there's no AF specific bits, in this case we can do AF agnostic matching
+			if (!family && length(devices) && !length(match_subnets[0]) && !length(match_subnets[1])) {
+				add_rule(0, devices, null, zone);
+			}
+
+			// we need to emit one or two AF specific rules
+			else {
+				if (family_is_ipv4(zone) && (length(devices) || length(match_subnets[0])))
+					add_rule(4, devices, match_subnets[0], zone);
+
+				if (family_is_ipv6(zone) && (length(devices) || length(match_subnets[1])))
+					add_rule(6, devices, match_subnets[1], zone);
+			}
+		}
+
 		// check if there's no AF specific bits, in this case we can do AF agnostic matching
-		if (!family && length(match_devices) && !length(match_subnets[0]) && !length(match_subnets[1])) {
-			add_rule(0, match_devices, null, zone);
+		if (!family && (match_all_devices || length(plain_devices)) && !length(match_subnets[0]) && !length(match_subnets[1])) {
+			add_rule(0, plain_devices, null, zone);
 		}
 
 		// we need to emit one or two AF specific rules
 		else {
-			if (family_is_ipv4(zone) && (length(match_devices) || length(match_subnets[0])))
-				add_rule(4, match_devices, match_subnets[0], zone);
+			if (family_is_ipv4(zone) && (match_all_devices || length(plain_devices) || length(match_subnets[0])))
+				add_rule(4, plain_devices, match_subnets[0], zone);
 
-			if (family_is_ipv6(zone) && (length(match_devices) || length(match_subnets[1])))
-				add_rule(6, match_devices, match_subnets[1], zone);
+			if (family_is_ipv6(zone) && (match_all_devices || length(plain_devices) || length(match_subnets[1])))
+				add_rule(6, plain_devices, match_subnets[1], zone);
 		}
 
 		zone.match_rules = match_rules;

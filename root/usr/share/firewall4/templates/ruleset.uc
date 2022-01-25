@@ -77,7 +77,7 @@ table inet fw4 {
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
 {% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
-		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "input" }) %}
+		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "input" }) %}
 {% endfor; endfor %}
 {% if (fw4.input_policy() == "reject"): %}
 		jump handle_reject
@@ -98,7 +98,7 @@ table inet fw4 {
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
 {% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
-		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "forward" }) %}
+		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "forward" }) %}
 {% endfor; endfor %}
 {% if (fw4.forward_policy() == "reject"): %}
 		jump handle_reject
@@ -118,7 +118,7 @@ table inet fw4 {
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
 {% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
-		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "output" }) %}
+		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "output" }) %}
 {% endfor; endfor %}
 {% if (fw4.output_policy() == "reject"): %}
 		jump handle_reject
@@ -207,7 +207,7 @@ table inet fw4 {
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.dnat): %}
 {%   for (let rule in zone.match_rules): %}
-		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "dstnat" }) %}
+		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "dstnat" }) %}
 {%   endfor %}
 {%  endif %}
 {% endfor %}
@@ -221,7 +221,7 @@ table inet fw4 {
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.snat): %}
 {%   for (let rule in zone.match_rules): %}
-		{%+ include("zone-match.uc", { fw4, zone, rule, direction: "srcnat" }) %}
+		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "srcnat" }) %}
 {%   endfor %}
 {%  endif %}
 {% endfor %}

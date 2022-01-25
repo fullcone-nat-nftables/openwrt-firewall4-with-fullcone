@@ -1,0 +1,351 @@
+Test that wildcard devices are properly handled.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_never_flags.txt --
+0x0
+-- End --
+
+-- File fs/open~_sys_class_net_test_flags.txt --
+0x0
+-- End --
+
+-- File fs/open~_sys_class_net_foo_flags.txt --
+0x0
+-- End --
+
+-- File fs/open~_sys_class_net_bar_flags.txt --
+0x0
+-- End --
+
+-- File fs/open~_sys_class_net_baz_flags.txt --
+0x0
+-- End --
+
+-- File fs/open~_sys_class_net_qrx_flags.txt --
+0x0
+-- End --
+
+-- File fs/open~_sys_class_net_test1_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_test2_flags.txt --
+0x1103
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			".description": "A '+' device match should translate to no ifname match at all",
+			"name": "test1",
+			"device": [ "+" ]
+		},
+		{
+			".description": "An inverted '+' device match should result in a match that always fails",
+			"name": "test2",
+			"device": [ "!+" ]
+		},
+		{
+			".description": "A 'name+' device match should translate to an nft wildcard pattern",
+			"name": "test3",
+			"device": [ "test+" ]
+		},
+		{
+			".description": "Wildcard matches must not be grouped into sets",
+			"name": "test4",
+			"device": [ "foo+", "bar+", "test1", "test2" ]
+		},
+		{
+			".description": "Multiple inverted wildcard matches may be grouped into one rule",
+			"name": "test5",
+			"device": [ "foo+", "bar+", "!baz+", "!qrx+", "test1", "test2", "!test3", "!test4" ]
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define test1_devices = { "+" }
+	define test2_devices = { "/never/" }
+	define test3_devices = { "test*" }
+	define test4_devices = { "foo*", "bar*", "test1", "test2" }
+	define test5_devices = { "foo*", "bar*", "test1", "test2" }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		jump input_test1 comment "!fw4: Handle test1 IPv4/IPv6 input traffic"
+		iifname "/never/" jump input_test2 comment "!fw4: Handle test2 IPv4/IPv6 input traffic"
+		iifname "test*" jump input_test3 comment "!fw4: Handle test3 IPv4/IPv6 input traffic"
+		iifname "foo*" jump input_test4 comment "!fw4: Handle test4 IPv4/IPv6 input traffic"
+		iifname "bar*" jump input_test4 comment "!fw4: Handle test4 IPv4/IPv6 input traffic"
+		iifname { "test1", "test2" } jump input_test4 comment "!fw4: Handle test4 IPv4/IPv6 input traffic"
+		iifname "foo*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump input_test5 comment "!fw4: Handle test5 IPv4/IPv6 input traffic"
+		iifname "bar*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump input_test5 comment "!fw4: Handle test5 IPv4/IPv6 input traffic"
+		iifname { "test1", "test2" } iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump input_test5 comment "!fw4: Handle test5 IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		jump forward_test1 comment "!fw4: Handle test1 IPv4/IPv6 forward traffic"
+		iifname "/never/" jump forward_test2 comment "!fw4: Handle test2 IPv4/IPv6 forward traffic"
+		iifname "test*" jump forward_test3 comment "!fw4: Handle test3 IPv4/IPv6 forward traffic"
+		iifname "foo*" jump forward_test4 comment "!fw4: Handle test4 IPv4/IPv6 forward traffic"
+		iifname "bar*" jump forward_test4 comment "!fw4: Handle test4 IPv4/IPv6 forward traffic"
+		iifname { "test1", "test2" } jump forward_test4 comment "!fw4: Handle test4 IPv4/IPv6 forward traffic"
+		iifname "foo*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump forward_test5 comment "!fw4: Handle test5 IPv4/IPv6 forward traffic"
+		iifname "bar*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump forward_test5 comment "!fw4: Handle test5 IPv4/IPv6 forward traffic"
+		iifname { "test1", "test2" } iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump forward_test5 comment "!fw4: Handle test5 IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		jump output_test1 comment "!fw4: Handle test1 IPv4/IPv6 output traffic"
+		oifname "/never/" jump output_test2 comment "!fw4: Handle test2 IPv4/IPv6 output traffic"
+		oifname "test*" jump output_test3 comment "!fw4: Handle test3 IPv4/IPv6 output traffic"
+		oifname "foo*" jump output_test4 comment "!fw4: Handle test4 IPv4/IPv6 output traffic"
+		oifname "bar*" jump output_test4 comment "!fw4: Handle test4 IPv4/IPv6 output traffic"
+		oifname { "test1", "test2" } jump output_test4 comment "!fw4: Handle test4 IPv4/IPv6 output traffic"
+		oifname "foo*" oifname != { "test3", "test4" } oifname != "baz*" oifname != "qrx*" jump output_test5 comment "!fw4: Handle test5 IPv4/IPv6 output traffic"
+		oifname "bar*" oifname != { "test3", "test4" } oifname != "baz*" oifname != "qrx*" jump output_test5 comment "!fw4: Handle test5 IPv4/IPv6 output traffic"
+		oifname { "test1", "test2" } oifname != { "test3", "test4" } oifname != "baz*" oifname != "qrx*" jump output_test5 comment "!fw4: Handle test5 IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test1 {
+		jump drop_from_test1
+	}
+
+	chain output_test1 {
+		jump drop_to_test1
+	}
+
+	chain forward_test1 {
+		jump drop_to_test1
+	}
+
+	chain drop_from_test1 {
+		counter drop comment "!fw4: drop test1 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test1 {
+		counter drop comment "!fw4: drop test1 IPv4/IPv6 traffic"
+	}
+
+	chain input_test2 {
+		jump drop_from_test2
+	}
+
+	chain output_test2 {
+		jump drop_to_test2
+	}
+
+	chain forward_test2 {
+		jump drop_to_test2
+	}
+
+	chain drop_from_test2 {
+		iifname "/never/" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test2 {
+		oifname "/never/" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain input_test3 {
+		jump drop_from_test3
+	}
+
+	chain output_test3 {
+		jump drop_to_test3
+	}
+
+	chain forward_test3 {
+		jump drop_to_test3
+	}
+
+	chain drop_from_test3 {
+		iifname "test*" counter drop comment "!fw4: drop test3 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test3 {
+		oifname "test*" counter drop comment "!fw4: drop test3 IPv4/IPv6 traffic"
+	}
+
+	chain input_test4 {
+		jump drop_from_test4
+	}
+
+	chain output_test4 {
+		jump drop_to_test4
+	}
+
+	chain forward_test4 {
+		jump drop_to_test4
+	}
+
+	chain drop_from_test4 {
+		iifname "foo*" counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+		iifname "bar*" counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+		iifname { "test1", "test2" } counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test4 {
+		oifname "foo*" counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+		oifname "bar*" counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+		oifname { "test1", "test2" } counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+	}
+
+	chain input_test5 {
+		jump drop_from_test5
+	}
+
+	chain output_test5 {
+		jump drop_to_test5
+	}
+
+	chain forward_test5 {
+		jump drop_to_test5
+	}
+
+	chain drop_from_test5 {
+		iifname "foo*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" counter drop comment "!fw4: drop test5 IPv4/IPv6 traffic"
+		iifname "bar*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" counter drop comment "!fw4: drop test5 IPv4/IPv6 traffic"
+		iifname { "test1", "test2" } iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" counter drop comment "!fw4: drop test5 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test5 {
+		oifname "foo*" oifname != { "test3", "test4" } oifname != "baz*" oifname != "qrx*" counter drop comment "!fw4: drop test5 IPv4/IPv6 traffic"
+		oifname "bar*" oifname != { "test3", "test4" } oifname != "baz*" oifname != "qrx*" counter drop comment "!fw4: drop test5 IPv4/IPv6 traffic"
+		oifname { "test1", "test2" } oifname != { "test3", "test4" } oifname != "baz*" oifname != "qrx*" counter drop comment "!fw4: drop test5 IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "/never/" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
+		iifname "test*" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
+		iifname "foo*" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
+		iifname "bar*" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
+		iifname { "test1", "test2" } jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
+		iifname "foo*" iifname != { "test3", "test4" } jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+		iifname "bar*" iifname != { "test3", "test4" } jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+		iifname { "test1", "test2" } iifname != { "test3", "test4" } jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+	chain helper_test1 {
+	}
+
+	chain helper_test2 {
+	}
+
+	chain helper_test3 {
+	}
+
+	chain helper_test4 {
+	}
+
+	chain helper_test5 {
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --
