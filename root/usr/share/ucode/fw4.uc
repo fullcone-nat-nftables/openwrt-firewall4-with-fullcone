@@ -991,7 +991,7 @@ return {
 		let nets = this.parse_subnet(rv.val);
 
 		if (nets === null)
-			return false;
+			return null;
 
 		if (length(nets))
 			rv.addrs = [ ...nets ];
