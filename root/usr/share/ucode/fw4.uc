@@ -1498,13 +1498,13 @@ return {
 	},
 
 	filter_loopback_devs: function(devs, invert) {
-		let self = this;
-		return filter(devs, d => (self.is_loopback_dev(d) == invert));
+		let rv = filter(devs, d => (this.is_loopback_dev(d) == invert));
+		return length(rv) ? rv : null;
 	},
 
 	filter_loopback_addrs: function(addrs, invert) {
-		let self = this;
-		return filter(addrs, a => (self.is_loopback_addr(a) == invert));
+		let rv = filter(addrs, a => (this.is_loopback_addr(a) == invert));
+		return length(rv) ? rv : null;
 	},
 
 

@@ -299,9 +299,9 @@ table inet fw4 {
 		iifname "foo*" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
 		iifname "bar*" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
 		iifname { "test1", "test2" } jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
-		iifname "foo*" iifname != { "test3", "test4" } jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
-		iifname "bar*" iifname != { "test3", "test4" } jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
-		iifname { "test1", "test2" } iifname != { "test3", "test4" } jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+		iifname "foo*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+		iifname "bar*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+		iifname { "test1", "test2" } iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
 	}
 
 	chain raw_output {

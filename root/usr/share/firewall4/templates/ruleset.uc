@@ -278,19 +278,12 @@ table inet fw4 {
 {%  for (let zone in fw4.zones()): %}
 {%   if (zone.dflags[target]): %}
 {%    for (let rule in zone.match_rules): %}
-{%     let devs = fw4.filter_loopback_devs(rule.devices_pos, false); %}
-{%     let nets = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
-{%     if (rule.devices_neg || rule.subnets_neg || length(devs) || length(nets)): %}
+{%     let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, false); %}
+{%     let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
+{%     if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
 		{%+ if (rule.family): -%}
 			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ if (length(devs)): -%}
-			iifname {{ fw4.set(devs) }} {%+ endif -%}
-		{%+ if (rule.devices_neg): -%}
-			iifname != {{ fw4.set(rule.devices_neg) }} {%+ endif -%}
-		{%+ if (length(nets)): -%}
-			{{ fw4.ipproto(rule.family) }} saddr {{ fw4.set(nets) }} {%+ endif -%}
-		{%+ if (rule.subnets_neg): -%}
-			{{ fw4.ipproto(rule.family) }} saddr != {{ fw4.set(rule.subnets_neg) }} {%+ endif -%}
+		{%+ include("zone-match.uc", { fw4, rule: { ...rule, devices_pos, subnets_pos } }) -%}
 		jump {{ target }}_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} {{
 			(target == "helper") ? "CT helper assignment" : "CT bypass"
 		}}"
@@ -307,15 +300,12 @@ table inet fw4 {
 {%  for (let zone in fw4.zones()): %}
 {%   if (zone.dflags[target]): %}
 {%    for (let rule in zone.match_rules): %}
-{%     let devs = fw4.filter_loopback_devs(rule.devices_pos, true); %}
-{%     let nets = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
-{%     if (length(devs) || length(nets)): %}
+{%     let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, true); %}
+{%     let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
+{%     if (devices_pos || subnets_pos): %}
 		{%+ if (rule.family): -%}
 			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ if (length(devs)): -%}
-			iifname {{ fw4.set(devs) }} {%+ endif -%}
-		{%+ if (length(nets)): -%}
-			{{ fw4.ipproto(rule.family) }} saddr {{ fw4.set(nets) }} {%+ endif -%}
+		{%+ include("zone-match.uc", { fw4, rule: { ...rule, devices_pos, subnets_pos } }) -%}
 		jump {{ target }}_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} {{
 			(target == "helper") ? "CT helper assignment" : "CT bypass"
 		}}"
