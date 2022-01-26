@@ -230,38 +230,30 @@ table inet fw4 {
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.dnat): %}
 	chain dstnat_{{ zone.name }} {
-{% for (let redirect in fw4.redirects("dstnat_"+zone.name)): %}
+{%   for (let redirect in fw4.redirects("dstnat_"+zone.name)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
-{% endfor %}
+{%   endfor %}
 	}
 
 {%  endif %}
 {%  if (zone.dflags.snat): %}
 	chain srcnat_{{ zone.name }} {
-{% for (let redirect in fw4.redirects("srcnat_"+zone.name)): %}
+{%   for (let redirect in fw4.redirects("srcnat_"+zone.name)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
-{% endfor %}
+{%   endfor %}
 {%   if (zone.masq): %}
-		meta nfproto ipv4 {%+ if (zone.masq4_src_pos): -%}
-			ip saddr {{ fw4.set(zone.masq4_src_pos) }} {%+ endif -%}
-		{%+ if (zone.masq4_src_neg): -%}
-			ip saddr != {{ fw4.set(zone.masq4_src_neg) }} {%+ endif -%}
-		{%+ if (zone.masq4_dest_pos): -%}
-			ip daddr {{ fw4.set(zone.masq4_dest_pos) }} {%+ endif -%}
-		{%+ if (zone.masq4_dest_neg): -%}
-			ip daddr != {{ fw4.set(zone.masq4_dest_neg) }} {%+ endif -%}
-		masquerade comment "!fw4: Masquerade IPv4 {{ zone.name }} traffic"
+{%    for (let saddrs in zone.masq4_src_subnets): %}
+{%     for (let daddrs in zone.masq4_dest_subnets): %}
+		{%+ include("zone-masq.uc", { fw4, zone, family: 4, saddrs, daddrs }) %}
+{%     endfor %}
+{%    endfor %}
 {%   endif %}
 {%   if (zone.masq6): %}
-		meta nfproto ipv6 {%+ if (zone.masq6_src_pos): -%}
-			ip6 saddr {{ fw4.set(zone.masq6_src_pos) }} {%+ endif -%}
-		{%+ if (zone.masq6_src_neg): -%}
-			ip6 saddr != {{ fw4.set(zone.masq6_src_neg) }} {%+ endif -%}
-		{%+ if (zone.masq6_dest_pos): -%}
-			ip6 daddr {{ fw4.set(zone.masq6_dest_pos) }} {%+ endif -%}
-		{%+ if (zone.masq6_dest_neg): -%}
-			ip6 daddr != {{ fw4.set(zone.masq6_dest_neg) }} {%+ endif -%}
-		masquerade comment "!fw4: Masquerade IPv6 {{ zone.name }} traffic"
+{%    for (let saddrs in zone.masq6_src_subnets): %}
+{%     for (let daddrs in zone.masq6_dest_subnets): %}
+		{%+ include("zone-masq.uc", { fw4, zone, family: 6, saddrs, daddrs }) %}
+{%     endfor %}
+{%    endfor %}
 {%   endif %}
 	}
 

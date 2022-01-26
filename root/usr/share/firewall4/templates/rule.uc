@@ -8,10 +8,14 @@
 	{{ fw4.ipproto(rule.family) }} saddr {{ fw4.set(rule.saddrs_pos) }} {%+ endif -%}
 {%+ if (rule.saddrs_neg): -%}
 	{{ fw4.ipproto(rule.family) }} saddr != {{ fw4.set(rule.saddrs_neg) }} {%+ endif -%}
+{%+ for (let a in rule.saddrs_masked): -%}
+	{{ fw4.ipproto(rule.family) }} saddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
 {%+ if (rule.daddrs_pos): -%}
 	{{ fw4.ipproto(rule.family) }} daddr {{ fw4.set(rule.daddrs_pos) }} {%+ endif -%}
 {%+ if (rule.daddrs_neg): -%}
 	{{ fw4.ipproto(rule.family) }} daddr != {{ fw4.set(rule.daddrs_neg) }} {%+ endif -%}
+{%+ for (let a in rule.daddrs_masked): -%}
+	{{ fw4.ipproto(rule.family) }} daddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
 {%+ if (rule.sports_pos): -%}
 	{{ rule.proto.name }} sport {{ fw4.set(rule.sports_pos) }} {%+ endif -%}
 {%+ if (rule.sports_neg): -%}

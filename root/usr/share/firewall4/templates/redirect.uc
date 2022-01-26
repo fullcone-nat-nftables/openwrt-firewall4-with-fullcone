@@ -10,10 +10,14 @@
 	{{ fw4.ipproto(redirect.family) }} saddr {{ fw4.set(redirect.saddrs_pos) }} {%+ endif -%}
 {%+ if (redirect.saddrs_neg): -%}
 	{{ fw4.ipproto(redirect.family) }} saddr != {{ fw4.set(redirect.saddrs_neg) }} {%+ endif -%}
+{%+ for (let a in redirect.saddrs_masked): -%}
+	{{ fw4.ipproto(redirect.family) }} saddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
 {%+ if (redirect.daddrs_pos): -%}
 	{{ fw4.ipproto(redirect.family) }} daddr {{ fw4.set(redirect.daddrs_pos) }} {%+ endif -%}
 {%+ if (redirect.daddrs_neg): -%}
 	{{ fw4.ipproto(redirect.family) }} daddr != {{ fw4.set(redirect.daddrs_neg) }} {%+ endif -%}
+{%+ for (let a in redirect.daddrs_masked): -%}
+	{{ fw4.ipproto(redirect.family) }} daddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
 {%+ if (redirect.sports_pos): -%}
 	{{ redirect.proto.name }} sport {{ fw4.set(redirect.sports_pos) }} {%+ endif -%}
 {%+ if (redirect.sports_neg): -%}

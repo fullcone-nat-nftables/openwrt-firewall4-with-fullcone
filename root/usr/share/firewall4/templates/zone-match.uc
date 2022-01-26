@@ -8,3 +8,5 @@
 	{{ fw4.ipproto(rule.family) }} {{ egress ? "daddr" : "saddr" }} {{ fw4.set(rule.subnets_pos) }} {%+ endif -%}
 {%+ if (rule.subnets_neg): -%}
 	{{ fw4.ipproto(rule.family) }} {{ egress ? "daddr" : "saddr" }} != {{ fw4.set(rule.subnets_neg) }} {%+ endif -%}
+{%+ for (let subnet in rule.subnets_masked): -%}
+	{{ fw4.ipproto(rule.family) }} {{ egress ? "daddr" : "saddr" }} & {{ subnet.mask }} {{ subnet.invert ? '!=' : '==' }} {{ subnet.addr }} {%+ endfor -%}

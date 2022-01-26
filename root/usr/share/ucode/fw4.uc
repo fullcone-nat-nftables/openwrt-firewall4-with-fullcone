@@ -242,6 +242,41 @@ function subnets_split_af(x) {
 	return rv;
 }
 
+function subnets_group_by_masking(x) {
+	let groups = [], plain = [], nc = [], invert_plain = [], invert_masked = [];
+
+	for (let a in to_array(x)) {
+		if (a.bits == -1 && !a.invert)
+			push(nc, a);
+		else if (!a.invert)
+			push(plain, a);
+		else if (a.bits == -1)
+			push(invert_masked, a);
+		else
+			push(invert_plain, a);
+	}
+
+	for (let a in nc)
+		push(groups, [ null, null_if_empty(invert_plain), [ a, ...invert_masked ] ]);
+
+	if (length(plain)) {
+		push(groups, [
+			plain,
+			null_if_empty(invert_plain),
+			null_if_empty(invert_masked)
+		]);
+	}
+	else if (!length(groups)) {
+		push(groups, [
+			null,
+			null_if_empty(invert_plain),
+			null_if_empty(invert_masked)
+		]);
+	}
+
+	return groups;
+}
+
 function ensure_tcpudp(x) {
 	if (length(filter(x, p => (p.name == "tcp" || p.name == "udp"))))
 		return true;
@@ -664,8 +699,13 @@ return {
 
 				b = to_bits(parts[1]);
 
-				if (b == null)
-					return null;
+				/* allow non-contiguous masks such as `::ffff:ffff:ffff:ffff` */
+				if (b == null) {
+					b = -1;
+
+					for (let i, x in m)
+						a[i] &= x;
+				}
 
 				m = arrtoip(m);
 			}
@@ -1402,7 +1442,10 @@ return {
 		    (a.family == 6 && a.bits == 128))
 		    return a.addr;
 
-		return sprintf("%s/%d", apply_mask(a.addr, a.bits), a.bits);
+		if (a.bits >= 0)
+			return sprintf("%s/%d", apply_mask(a.addr, a.bits), a.bits);
+
+		return sprintf("%s/%s", a.addr, a.mask);
 	},
 
 	host: function(a) {
@@ -1765,8 +1808,9 @@ return {
 			r.devices_neg = null_if_empty(devices[1]);
 			r.devices_neg_wildcard = null_if_empty(devices[2]);
 
-			r.subnets_pos = map(filter_pos(subnets), this.cidr);
-			r.subnets_neg = map(filter_neg(subnets), this.cidr);
+			r.subnets_pos = map(subnets[0], this.cidr);
+			r.subnets_neg = map(subnets[1], this.cidr);
+			r.subnets_masked = subnets[2];
 
 			push(match_rules, r);
 		};
@@ -1831,41 +1875,29 @@ return {
 			for (let devgroup in devices) {
 				// check if there's no AF specific bits, in this case we can do AF agnostic matching
 				if (!family && !length(match_subnets[0]) && !length(match_subnets[1])) {
-					add_rule(0, devgroup, null, zone);
+					add_rule(0, devgroup, [], zone);
 				}
 
 				// we need to emit one or two AF specific rules
 				else {
 					if (family_is_ipv4(zone) && length(match_subnets[0]))
-						add_rule(4, devgroup, match_subnets[0], zone);
+						for (let subnets in subnets_group_by_masking(match_subnets[0]))
+							add_rule(4, devgroup, subnets, zone);
 
 					if (family_is_ipv6(zone) && length(match_subnets[1]))
-						add_rule(6, devgroup, match_subnets[1], zone);
+						for (let subnets in subnets_group_by_masking(match_subnets[1]))
+							add_rule(6, devgroup, subnets, zone);
 				}
 			}
 		}
 
 		zone.match_rules = match_rules;
 
-		if (masq_src_subnets[0]) {
-			zone.masq4_src_pos = map(filter_pos(masq_src_subnets[0]), this.cidr);
-			zone.masq4_src_neg = map(filter_neg(masq_src_subnets[0]), this.cidr);
-		}
+		zone.masq4_src_subnets = subnets_group_by_masking(masq_src_subnets[0]);
+		zone.masq4_dest_subnets = subnets_group_by_masking(masq_dest_subnets[0]);
 
-		if (masq_src_subnets[1]) {
-			zone.masq6_src_pos = map(filter_pos(masq_src_subnets[1]), this.cidr);
-			zone.masq6_src_neg = map(filter_neg(masq_src_subnets[1]), this.cidr);
-		}
-
-		if (masq_dest_subnets[0]) {
-			zone.masq4_dest_pos = map(filter_pos(masq_dest_subnets[0]), this.cidr);
-			zone.masq4_dest_neg = map(filter_neg(masq_dest_subnets[0]), this.cidr);
-		}
-
-		if (masq_dest_subnets[1]) {
-			zone.masq6_dest_pos = map(filter_pos(masq_dest_subnets[1]), this.cidr);
-			zone.masq6_dest_neg = map(filter_neg(masq_dest_subnets[1]), this.cidr);
-		}
+		zone.masq6_src_subnets = subnets_group_by_masking(masq_src_subnets[1]);
+		zone.masq6_dest_subnets = subnets_group_by_masking(masq_dest_subnets[1]);
 
 		zone.sflags = {};
 		zone.sflags[zone.input] = true;
@@ -1875,7 +1907,7 @@ return {
 		zone.dflags[zone.forward] = true;
 
 		zone.match_devices = map(filter(match_devices, d => !d.invert), d => d.device);
-		zone.match_subnets = map(filter(related_subnets, s => !s.invert), this.cidr);
+		zone.match_subnets = map(filter(related_subnets, s => !s.invert && s.bits != -1), this.cidr);
 
 		zone.related_subnets = related_subnets;
 
@@ -2093,12 +2125,14 @@ return {
 
 				family: family,
 				proto: proto,
-				has_addrs: !!(length(saddrs) || length(daddrs)),
+				has_addrs: !!(saddrs[0] || saddrs[1] || saddrs[2] || daddrs[0] || daddrs[1] || daddrs[2]),
 				has_ports: !!(length(sports) || length(dports)),
-				saddrs_pos: map(filter_pos(saddrs), this.cidr),
-				saddrs_neg: map(filter_neg(saddrs), this.cidr),
-				daddrs_pos: map(filter_pos(daddrs), this.cidr),
-				daddrs_neg: map(filter_neg(daddrs), this.cidr),
+				saddrs_pos: map(saddrs[0], this.cidr),
+				saddrs_neg: map(saddrs[1], this.cidr),
+				saddrs_masked: saddrs[2],
+				daddrs_pos: map(daddrs[0], this.cidr),
+				daddrs_neg: map(daddrs[1], this.cidr),
+				daddrs_masked: daddrs[2],
 				sports_pos: map(filter_pos(sports), this.port),
 				sports_neg: map(filter_neg(sports), this.port),
 				dports_pos: map(filter_pos(dports), this.port),
@@ -2246,7 +2280,7 @@ return {
 
 			/* check if there's no AF specific bits, in this case we can do an AF agnostic rule */
 			if (!family && rule.target != "dscp" && !has_ipv4_specifics && !has_ipv6_specifics) {
-				add_rule(0, proto, null, null, sports, dports, null, null, null, rule);
+				add_rule(0, proto, [], [], sports, dports, null, null, null, rule);
 			}
 
 			/* we need to emit one or two AF specific rules */
@@ -2255,22 +2289,30 @@ return {
 					let icmp_types = filter(itypes4, i => (i.code_min == 0 && i.code_max == 0xFF));
 					let icmp_codes = filter(itypes4, i => (i.code_min != 0 || i.code_max != 0xFF));
 
-					if (length(icmp_types) || (!length(icmp_types) && !length(icmp_codes)))
-						add_rule(4, proto, sip[0], dip[0], sports, dports, icmp_types, null, ipset, rule);
+					for (let saddrs in subnets_group_by_masking(sip[0])) {
+						for (let daddrs in subnets_group_by_masking(dip[0])) {
+							if (length(icmp_types) || (!length(icmp_types) && !length(icmp_codes)))
+								add_rule(4, proto, saddrs, daddrs, sports, dports, icmp_types, null, ipset, rule);
 
-					if (length(icmp_codes))
-						add_rule(4, proto, sip[0], dip[0], sports, dports, null, icmp_codes, ipset, rule);
+							if (length(icmp_codes))
+								add_rule(4, proto, saddrs, daddrs, sports, dports, null, icmp_codes, ipset, rule);
+						}
+					}
 				}
 
 				if (family == 0 || family == 6) {
 					let icmp_types = filter(itypes6, i => (i.code_min == 0 && i.code_max == 0xFF));
 					let icmp_codes = filter(itypes6, i => (i.code_min != 0 || i.code_max != 0xFF));
 
-					if (length(icmp_types) || (!length(icmp_types) && !length(icmp_codes)))
-						add_rule(6, proto, sip[1], dip[1], sports, dports, icmp_types, null, ipset, rule);
+					for (let saddrs in subnets_group_by_masking(sip[1])) {
+						for (let daddrs in subnets_group_by_masking(dip[1])) {
+							if (length(icmp_types) || (!length(icmp_types) && !length(icmp_codes)))
+								add_rule(6, proto, saddrs, daddrs, sports, dports, icmp_types, null, ipset, rule);
 
-					if (length(icmp_codes))
-						add_rule(6, proto, sip[1], dip[1], sports, dports, null, icmp_codes, ipset, rule);
+							if (length(icmp_codes))
+								add_rule(6, proto, saddrs, daddrs, sports, dports, null, icmp_codes, ipset, rule);
+						}
+					}
 				}
 			}
 		}
@@ -2388,6 +2430,8 @@ return {
 				return this.warn_section(r, "must not have source '*' for dnat target");
 			else if (redir.dest_ip && redir.dest_ip.invert)
 				return this.warn_section(r, "must not specify a negated 'dest_ip' value");
+			else if (redir.dest_ip && length(filter(redir.dest_ip.addrs, a => a.bits == -1)))
+				return this.warn_section(data, "must not use non-contiguous masks in 'dest_ip'");
 
 			if (!redir.dest && redir.dest_ip && resolve_dest(redir))
 				this.warn_section(r, "does not specify a destination, assuming '" + redir.dest.zone.name + "'");
@@ -2415,6 +2459,8 @@ return {
 				return this.warn_section(data, "has no 'src_dip' option specified");
 			else if (redir.src_dip.invert)
 				return this.warn_section(data, "must not specify a negated 'src_dip' value");
+			else if (length(filter(redir.src_dip.addrs, a => a.bits == -1)))
+				return this.warn_section(data, "must not use non-contiguous masks in 'src_dip'");
 			else if (redir.src_mac)
 				return this.warn_section(data, "must not use 'src_mac' option for snat target");
 			else if (redir.helper)
@@ -2430,12 +2476,14 @@ return {
 
 				family: family,
 				proto: proto,
-				has_addrs: !!(length(saddrs) || length(daddrs)),
+				has_addrs: !!(saddrs[0] || saddrs[1] || saddrs[2] || daddrs[0] || daddrs[1] || daddrs[2]),
 				has_ports: !!(sport || dport || rport),
-				saddrs_pos: map(filter_pos(saddrs), this.cidr),
-				saddrs_neg: map(filter_neg(saddrs), this.cidr),
-				daddrs_pos: map(filter_pos(daddrs), this.cidr),
-				daddrs_neg: map(filter_neg(daddrs), this.cidr),
+				saddrs_pos: map(saddrs[0], this.cidr),
+				saddrs_neg: map(saddrs[1], this.cidr),
+				saddrs_masked: saddrs[2],
+				daddrs_pos: map(daddrs[0], this.cidr),
+				daddrs_neg: map(daddrs[1], this.cidr),
+				daddrs_masked: daddrs[2],
 				sports_pos: map(filter_pos(to_array(sport)), this.port),
 				sports_neg: map(filter_neg(to_array(sport)), this.port),
 				dports_pos: map(filter_pos(to_array(dport)), this.port),
@@ -2572,13 +2620,19 @@ return {
 								refredir.src = rzone;
 								refredir.dest = null;
 								refredir.target = "dnat";
-								add_rule(i ? 6 : 4, proto, iaddrs[i], eaddrs[i], rip[i], sport, dport, rport, null, refredir);
+
+								for (let saddrs in subnets_group_by_masking(iaddrs[i]))
+									for (let daddrs in subnets_group_by_masking(eaddrs[i]))
+										add_rule(i ? 6 : 4, proto, saddrs, daddrs, rip[i], sport, dport, rport, null, refredir);
 
 								for (let refaddr in refaddrs[i]) {
 									refredir.src = null;
 									refredir.dest = rzone;
 									refredir.target = "snat";
-									add_rule(i ? 6 : 4, proto, iaddrs[i], rip[i], [ refaddr ], null, rport, null, null, refredir);
+
+									for (let saddrs in subnets_group_by_masking(iaddrs[i]))
+										for (let daddrs in subnets_group_by_masking(rip[i]))
+											add_rule(i ? 6 : 4, proto, saddrs, daddrs, [ refaddr ], null, rport, null, null, refredir);
 								}
 							}
 						}
@@ -2614,16 +2668,22 @@ return {
 				if (family == null)
 					family = 4;
 
-				add_rule(family, proto, null, null, null, sport, dport, rport, null, redir);
+				add_rule(family, proto, [], [], null, sport, dport, rport, null, redir);
 			}
 
 			/* we need to emit one or two AF specific rules */
 			else {
-				if ((!family || family == 4) && (length(sip[0]) || length(dip[0]) || length(rip[0])))
-					add_rule(4, proto, sip[0], dip[0], rip[0], sport, dport, rport, ipset, redir);
+				if ((!family || family == 4) && (length(sip[0]) || length(dip[0]) || length(rip[0]))) {
+					for (let saddrs in subnets_group_by_masking(sip[0]))
+						for (let daddrs in subnets_group_by_masking(dip[0]))
+							add_rule(4, proto, saddrs, daddrs, rip[0], sport, dport, rport, ipset, redir);
+				}
 
-				if ((!family || family == 6) && (length(sip[1]) || length(dip[1]) || length(rip[1])))
-					add_rule(6, proto, sip[1], dip[1], rip[1], sport, dport, rport, ipset, redir);
+				if ((!family || family == 6) && (length(sip[1]) || length(dip[1]) || length(rip[1]))) {
+					for (let saddrs in subnets_group_by_masking(sip[1]))
+						for (let daddrs in subnets_group_by_masking(dip[1]))
+							add_rule(6, proto, saddrs, daddrs, rip[1], sport, dport, rport, ipset, redir);
+				}
 			}
 		}
 	},
@@ -2703,6 +2763,11 @@ return {
 			return;
 		}
 
+		if (snat.snat_ip && length(filter(snat.snat_ip.addrs, a => a.bits == -1 || a.invert))) {
+			this.warn_section(data, "must not use inversion or non-contiguous masks in 'snat_ip', ignoring section");
+			return;
+		}
+
 		if (snat.src && snat.src.zone)
 			snat.src.zone.dflags.snat = true;
 
@@ -2712,12 +2777,14 @@ return {
 
 				family: family,
 				proto: proto,
-				has_addrs: !!(length(saddrs) || length(daddrs) || length(raddrs)),
+				has_addrs: !!(saddrs[0] || saddrs[1] || saddrs[2] || daddrs[0] || daddrs[1] || daddrs[2]),
 				has_ports: !!(sport || dport),
-				saddrs_pos: map(filter_pos(saddrs), this.cidr),
-				saddrs_neg: map(filter_neg(saddrs), this.cidr),
-				daddrs_pos: map(filter_pos(daddrs), this.cidr),
-				daddrs_neg: map(filter_neg(daddrs), this.cidr),
+				saddrs_pos: map(saddrs[0], this.cidr),
+				saddrs_neg: map(saddrs[1], this.cidr),
+				saddrs_masked: saddrs[2],
+				daddrs_pos: map(daddrs[0], this.cidr),
+				daddrs_neg: map(daddrs[1], this.cidr),
+				daddrs_masked: daddrs[2],
 				sports_pos: map(filter_pos(to_array(sport)), this.port),
 				sports_neg: map(filter_neg(to_array(sport)), this.port),
 				dports_pos: map(filter_pos(to_array(dport)), this.port),
@@ -2778,16 +2845,20 @@ return {
 
 			/* check if there's no AF specific bits, in this case we can do an AF agnostic rule */
 			if (!family && !length(sip[0]) && !length(sip[1]) && !length(dip[0]) && !length(dip[1]) && !length(rip[0]) && !length(rip[1])) {
-				add_rule(0, proto, null, null, null, sport, dport, rport, snat);
+				add_rule(0, proto, [], [], null, sport, dport, rport, snat);
 			}
 
 			/* we need to emit one or two AF specific rules */
 			else {
 				if (family == 0 || family == 4)
-					add_rule(4, proto, sip[0], dip[0], rip[0], sport, dport, rport, snat);
+					for (let saddr in subnets_group_by_masking(sip[0]))
+						for (let daddr in subnets_group_by_masking(dip[0]))
+							add_rule(4, proto, saddr, daddr, rip[0], sport, dport, rport, snat);
 
 				if (family == 0 || family == 6)
-					add_rule(6, proto, sip[1], dip[1], rip[1], sport, dport, rport, snat);
+					for (let saddr in subnets_group_by_masking(sip[1]))
+						for (let daddr in subnets_group_by_masking(dip[1]))
+							add_rule(6, proto, saddr, daddr, rip[1], sport, dport, rport, snat);
 			}
 		}
 	},

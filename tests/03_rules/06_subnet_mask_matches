@@ -1,0 +1,321 @@
+Test that non-contiguous subnet masks are properly handled in rule source
+or destination IP expressions. Such masks need to be translated into
+bitwise expressions which may not appear as part of sets, so various
+permutations of rules need to be emitted.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "wan",
+			"network": "wan6",
+			"masq6": 1
+		},
+		{
+			"name": "lan",
+			"network": "lan",
+			"auto_helper": 0
+		},
+		{
+			"name": "guest",
+			"network": "guest",
+			"auto_helper": 0
+		}
+	],
+	"rule": [
+		{
+			".description": "Ensure that IPs with non-contiguous masks are properly translated",
+			"proto": "all",
+			"name": "Mask rule #1",
+			"src_ip": "::1/::ffff",
+			"dest_ip": "!::2/::ffff"
+		},
+		{
+			".description": "Ensure that combinations of multiple masked and not masked IPs yield the proper rule permutations",
+			"proto": "all",
+			"name": "Mask rule #2",
+			"src_ip": [
+				"::1/::ffff",
+				"::2/::ffff",
+				"::3/128",
+				"::4/128",
+				"!::5/::ffff",
+				"!::6/::ffff",
+				"!::7/128",
+				"!::8/128"
+			],
+			"dest_ip": [
+				"::9/::ffff",
+				"::10/::ffff",
+				"::11/128",
+				"::12/128",
+				"!::13/::ffff",
+				"!::14/::ffff",
+				"!::15/128",
+				"!::16/128"
+			]
+		}
+	],
+	"redirect": [
+		{
+			".description": "Ensure that masked IPs are properly handled in reflection rules",
+			"proto": "all",
+			"name": "Mask rule #3",
+			"src": "wan",
+			"dest": "lan",
+			"src_ip": "::1/::ffff",
+			"src_dip": "::9/::ffff",
+			"dest_ip": "::99",
+			"dest_port": "22",
+			"target": "DNAT",
+			"reflection_zone": [ "lan", "guest" ]
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define wan_devices = { "eth1" }
+	define wan_subnets = { 2001:db8:54:321::/64 }
+	define lan_devices = { "br-lan" }
+	define lan_subnets = { 10.0.0.0/24, 192.168.26.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
+	define guest_devices = { "br-guest" }
+	define guest_subnets = { 10.1.0.0/24, 192.168.27.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
+		iifname "br-guest" jump input_guest comment "!fw4: Handle guest IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
+		iifname "br-guest" jump forward_guest comment "!fw4: Handle guest IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		ip6 saddr & ::ffff == ::1 ip6 daddr & ::ffff != ::2 counter comment "!fw4: Mask rule #1"
+		ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::1 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::9 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::1 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::10 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::1 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr { ::11, ::12 } ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::2 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::9 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::2 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::10 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::2 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr { ::11, ::12 } ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::9 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::10 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr { ::11, ::12 } ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
+		oifname "br-guest" jump output_guest comment "!fw4: Handle guest IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_wan {
+		ct status dnat accept comment "!fw4: Accept port redirections"
+		jump drop_from_wan
+	}
+
+	chain output_wan {
+		jump drop_to_wan
+	}
+
+	chain forward_wan {
+		ct status dnat accept comment "!fw4: Accept port forwards"
+		jump drop_to_wan
+	}
+
+	chain drop_from_wan {
+		iifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_wan {
+		oifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+	}
+
+	chain input_lan {
+		ct status dnat accept comment "!fw4: Accept port redirections"
+		jump drop_from_lan
+	}
+
+	chain output_lan {
+		jump drop_to_lan
+	}
+
+	chain forward_lan {
+		ct status dnat accept comment "!fw4: Accept port forwards"
+		jump drop_to_lan
+	}
+
+	chain drop_from_lan {
+		iifname "br-lan" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_lan {
+		oifname "br-lan" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+	}
+
+	chain input_guest {
+		ct status dnat accept comment "!fw4: Accept port redirections"
+		jump drop_from_guest
+	}
+
+	chain output_guest {
+		jump drop_to_guest
+	}
+
+	chain forward_guest {
+		ct status dnat accept comment "!fw4: Accept port forwards"
+		jump drop_to_guest
+	}
+
+	chain drop_from_guest {
+		iifname "br-guest" counter drop comment "!fw4: drop guest IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_guest {
+		oifname "br-guest" counter drop comment "!fw4: drop guest IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+		iifname "eth1" jump dstnat_wan comment "!fw4: Handle wan IPv4/IPv6 dstnat traffic"
+		iifname "br-lan" jump dstnat_lan comment "!fw4: Handle lan IPv4/IPv6 dstnat traffic"
+		iifname "br-guest" jump dstnat_guest comment "!fw4: Handle guest IPv4/IPv6 dstnat traffic"
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "eth1" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
+		oifname "br-lan" jump srcnat_lan comment "!fw4: Handle lan IPv4/IPv6 srcnat traffic"
+		oifname "br-guest" jump srcnat_guest comment "!fw4: Handle guest IPv4/IPv6 srcnat traffic"
+	}
+
+	chain dstnat_wan {
+		ip6 saddr & ::ffff == ::1 ip6 daddr & ::ffff == ::9 counter dnat ::99 comment "!fw4: Mask rule #3"
+	}
+
+	chain srcnat_wan {
+		meta nfproto ipv6 masquerade comment "!fw4: Masquerade IPv6 wan traffic"
+	}
+
+	chain dstnat_lan {
+		ip6 saddr { 2001:db8:1000::/60, fd63:e2f:f706::/60 } ip6 daddr & ::ffff == ::9 dnat ::99 comment "!fw4: Mask rule #3 (reflection)"
+	}
+
+	chain srcnat_lan {
+		ip6 saddr 2001:db8:1000::/60 ip6 daddr ::99 snat 2001:db8:1000:1::1 comment "!fw4: Mask rule #3 (reflection)"
+		ip6 saddr fd63:e2f:f706::/60 ip6 daddr ::99 snat fd63:e2f:f706:1::1 comment "!fw4: Mask rule #3 (reflection)"
+	}
+
+	chain dstnat_guest {
+		ip6 saddr { 2001:db8:1000::/60, fd63:e2f:f706::/60 } ip6 daddr & ::ffff == ::9 dnat ::99 comment "!fw4: Mask rule #3 (reflection)"
+	}
+
+	chain srcnat_guest {
+		ip6 saddr 2001:db8:1000::/60 ip6 daddr ::99 snat 2001:db8:1000:2::1 comment "!fw4: Mask rule #3 (reflection)"
+		ip6 saddr fd63:e2f:f706::/60 ip6 daddr ::99 snat fd63:e2f:f706:2::1 comment "!fw4: Mask rule #3 (reflection)"
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --
