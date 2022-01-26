@@ -264,9 +264,9 @@ function ensure_tcpudp(x) {
 	return false;
 }
 
-let is_family = (x, v) => (x.family == 0 || x.family == v);
-let family_is_ipv4 = (x) => (x.family == 0 || x.family == 4);
-let family_is_ipv6 = (x) => (x.family == 0 || x.family == 6);
+let is_family = (x, v) => (!x.family || x.family == v);
+let family_is_ipv4 = (x) => (!x.family || x.family == 4);
+let family_is_ipv6 = (x) => (!x.family || x.family == 6);
 
 function infer_family(f, objects) {
 	let res = f;
@@ -277,7 +277,7 @@ function infer_family(f, objects) {
 		    desc = objects[i + 1];
 
 		for (let obj in objs) {
-			if (!obj || obj.family == 0 || obj.family == res)
+			if (!obj || !obj.family || obj.family == res)
 				continue;
 
 			if (res == 0) {
