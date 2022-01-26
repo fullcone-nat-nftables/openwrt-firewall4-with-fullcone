@@ -1208,7 +1208,7 @@ return {
 			rv.dscp = dscp_classes[rv.val];
 		}
 		else {
-			let n = +val;
+			let n = +rv.val;
 
 			if (n != n || n < 0 || n > 0x3F)
 				return null;
