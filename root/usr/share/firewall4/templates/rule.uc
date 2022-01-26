@@ -56,7 +56,7 @@
 {%+ if (rule.mark && rule.mark.mask == 0xFFFFFFFF): -%}
 	meta mark{% if (rule.mark.invert): %} !={% endif %} {{ fw4.hex(rule.mark.mark) }} {%+ endif -%}
 {%+ if (rule.dscp): -%}
-	dscp{% if (rule.dscp.invert): %} !={% endif %} {{ fw4.hex(rule.dscp.dscp) }} {%+ endif -%}
+	{{ fw4.ipproto(rule.family) }} dscp{% if (rule.dscp.invert): %} !={% endif %} {{ fw4.hex(rule.dscp.dscp) }} {%+ endif -%}
 {%+ if (rule.ipset): -%}
 	{{ fw4.concat(rule.ipset.fields) }}{{
 		rule.ipset.invert ? ' !=' : ''

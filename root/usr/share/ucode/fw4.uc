@@ -2239,8 +2239,8 @@ return {
 			sip = subnets_split_af(rule.src_ip);
 			dip = subnets_split_af(rule.dest_ip);
 
-			let has_ipv4_specifics = (length(sip[0]) || length(dip[0]) || length(itypes4));
-			let has_ipv6_specifics = (length(sip[1]) || length(dip[1]) || length(itypes6));
+			let has_ipv4_specifics = (length(sip[0]) || length(dip[0]) || length(itypes4) || rule.dscp !== null);
+			let has_ipv6_specifics = (length(sip[1]) || length(dip[1]) || length(itypes6) || rule.dscp !== null);
 
 			/* if no family was configured, infer target family from IP addresses */
 			if (family === null) {

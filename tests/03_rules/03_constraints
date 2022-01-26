@@ -47,10 +47,17 @@ Testing various option constraints.
 		},
 
 		{
-			".description": "DSCP rules require a set_dscp option",
+			".description": "DSCP target rules require a set_dscp option",
 			"proto": "any",
-			"name": "DSCP rule #1",
+			"name": "DSCP target rule #1",
 			"target": "dscp"
+		},
+
+		{
+			".description": "DSCP matches enforce AF specific rules due to required ip/ip6 prefix",
+			"proto": "any",
+			"name": "DSCP match rule #1",
+			"dscp": "0x0"
 		},
 
 		{
@@ -67,8 +74,8 @@ Testing various option constraints.
 [!] Section @rule[0] (Helper rule #1) must specify a source zone for target 'helper'
 [!] Section @rule[1] (Helper rule #2) must specify option 'set_helper' for target 'helper'
 [!] Section @rule[2] (Notrack rule) must specify a source zone for target 'notrack'
-[!] Section @rule[3] (DSCP rule #1) must specify option 'set_dscp' for target 'dscp'
-[!] Section @rule[4] (Mark rule #1) must specify option 'set_mark' or 'set_xmark' for target 'mark'
+[!] Section @rule[3] (DSCP target rule #1) must specify option 'set_dscp' for target 'dscp'
+[!] Section @rule[5] (Mark rule #1) must specify option 'set_mark' or 'set_xmark' for target 'mark'
 -- End --
 
 -- Expect stdout --
@@ -117,6 +124,8 @@ table inet fw4 {
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		meta nfproto ipv4 ip dscp 0x0 counter comment "!fw4: DSCP match rule #1"
+		meta nfproto ipv6 ip6 dscp 0x0 counter comment "!fw4: DSCP match rule #1"
 	}
 
 	chain handle_reject {
