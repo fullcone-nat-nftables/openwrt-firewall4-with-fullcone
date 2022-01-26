@@ -220,14 +220,8 @@ function filter_neg(x) {
 	return length(rv) ? rv : null;
 }
 
-function filter_neg_nonwildcard(x) {
-	let rv = filter(x, e => e.invert && !e.wildcard);
-	return length(rv) ? rv : null;
-}
-
-function filter_neg_wildcard(x) {
-	let rv = filter(x, e => e.invert && e.wildcard);
-	return length(rv) ? rv : null;
+function null_if_empty(x) {
+	return length(x) ? x : null;
 }
 
 function subnets_split_af(x) {
@@ -1498,13 +1492,11 @@ return {
 	},
 
 	filter_loopback_devs: function(devs, invert) {
-		let rv = filter(devs, d => (this.is_loopback_dev(d) == invert));
-		return length(rv) ? rv : null;
+		return null_if_empty(filter(devs, d => (this.is_loopback_dev(d) == invert)));
 	},
 
 	filter_loopback_addrs: function(addrs, invert) {
-		let rv = filter(addrs, a => (this.is_loopback_addr(a) == invert));
-		return length(rv) ? rv : null;
+		return null_if_empty(filter(addrs, a => (this.is_loopback_addr(a) == invert)));
 	},
 
 
@@ -1769,9 +1761,9 @@ return {
 
 			r.family = family;
 
-			r.devices_pos = map(filter_pos(devices), d => d.device);
-			r.devices_neg = map(filter_neg_nonwildcard(devices), d => d.device);
-			r.devices_neg_wildcard = map(filter_neg_wildcard(devices), d => d.device);
+			r.devices_pos = null_if_empty(devices[0]);
+			r.devices_neg = null_if_empty(devices[1]);
+			r.devices_neg_wildcard = null_if_empty(devices[2]);
 
 			r.subnets_pos = map(filter_pos(subnets), this.cidr);
 			r.subnets_neg = map(filter_neg(subnets), this.cidr);
@@ -1784,7 +1776,7 @@ return {
 		]);
 
 		// group non-inverted device matches into wildcard and non-wildcard ones
-		let wildcard_devices = [], plain_devices = [], match_all_devices = false;
+		let devices = [], plain_devices = [], plain_invert_devices = [], wildcard_invert_devices = [];
 
 		for (let device in match_devices) {
 			let m = match(device.device, /^([^+]*)(\+)?$/);
@@ -1796,10 +1788,8 @@ return {
 
 			// filter `+` (match any device) since nftables does not support
 			// wildcard only matches
-			if (!device.invert && m[0] == '+') {
-				match_all_devices = true;
+			if (!device.invert && m[0] == '+')
 				continue;
-			}
 
 			// replace inverted `+` (match no device) with invalid pattern
 			if (device.invert && m[0] == '+') {
@@ -1814,43 +1804,45 @@ return {
 			device.wildcard = !!m[2];
 
 			if (!device.invert && device.wildcard)
-				push(wildcard_devices, device);
+				push(devices, [ [ device.device ], plain_invert_devices, wildcard_invert_devices ]);
+			else if (!device.invert)
+				push(plain_devices, device.device);
+			else if (device.wildcard)
+				push(wildcard_invert_devices, device.device);
 			else
-				push(plain_devices, device);
+				push(plain_invert_devices, device.device);
 		}
 
-		// loop wildcard devices
-		for (let wildcard_device in wildcard_devices) {
-			// cover this wildcard and any inverted wildcard or non-wildcard interface
-			let devices = [ wildcard_device, ...(filter_neg(plain_devices) || []) ];
+		if (length(plain_devices))
+			push(devices, [
+				plain_devices,
+				plain_invert_devices,
+				wildcard_invert_devices
+			]);
+		else if (!length(devices))
+			push(devices, [
+				null,
+				plain_invert_devices,
+				wildcard_invert_devices
+			]);
 
-			// check if there's no AF specific bits, in this case we can do AF agnostic matching
-			if (!family && length(devices) && !length(match_subnets[0]) && !length(match_subnets[1])) {
-				add_rule(0, devices, null, zone);
+		// emit zone jump rules for each device group
+		if (length(match_devices) || length(match_subnets[0]) || length(match_subnets[1])) {
+			for (let devgroup in devices) {
+				// check if there's no AF specific bits, in this case we can do AF agnostic matching
+				if (!family && !length(match_subnets[0]) && !length(match_subnets[1])) {
+					add_rule(0, devgroup, null, zone);
+				}
+
+				// we need to emit one or two AF specific rules
+				else {
+					if (family_is_ipv4(zone) && length(match_subnets[0]))
+						add_rule(4, devgroup, match_subnets[0], zone);
+
+					if (family_is_ipv6(zone) && length(match_subnets[1]))
+						add_rule(6, devgroup, match_subnets[1], zone);
+				}
 			}
-
-			// we need to emit one or two AF specific rules
-			else {
-				if (family_is_ipv4(zone) && (length(devices) || length(match_subnets[0])))
-					add_rule(4, devices, match_subnets[0], zone);
-
-				if (family_is_ipv6(zone) && (length(devices) || length(match_subnets[1])))
-					add_rule(6, devices, match_subnets[1], zone);
-			}
-		}
-
-		// check if there's no AF specific bits, in this case we can do AF agnostic matching
-		if (!family && (match_all_devices || length(plain_devices)) && !length(match_subnets[0]) && !length(match_subnets[1])) {
-			add_rule(0, plain_devices, null, zone);
-		}
-
-		// we need to emit one or two AF specific rules
-		else {
-			if (family_is_ipv4(zone) && (match_all_devices || length(plain_devices) || length(match_subnets[0])))
-				add_rule(4, plain_devices, match_subnets[0], zone);
-
-			if (family_is_ipv6(zone) && (match_all_devices || length(plain_devices) || length(match_subnets[1])))
-				add_rule(6, plain_devices, match_subnets[1], zone);
 		}
 
 		zone.match_rules = match_rules;
