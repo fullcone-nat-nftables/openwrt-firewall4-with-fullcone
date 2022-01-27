@@ -2401,22 +2401,24 @@ return {
 
 		let resolve_dest = (redir) => {
 			for (let zone in this.state.zones) {
-				for (let addr in zone.related_subnets) {
-					if (redir.dest_ip.family != addr.family)
-						continue;
+				for (let zone_addr in zone.related_subnets) {
+					for (let dest_addr in redir.dest_ip.addrs) {
+						if (dest_addr.family != zone_addr.family)
+							continue;
 
-					let a = apply_mask(redir.dest_ip.addr, addr.bits);
-					let b = apply_mask(addr.addr, addr.bits);
+						let a = apply_mask(dest_addr.addr, zone_addr.mask);
+						let b = apply_mask(zone_addr.addr, zone_addr.mask);
 
-					if (a != b)
-						continue;
+						if (a != b)
+							continue;
 
-					redir.dest = {
-						any: false,
-						zone: zone
-					};
+						redir.dest = {
+							any: false,
+							zone: zone
+						};
 
-					return true;
+						return true;
+					}
 				}
 			}
 
