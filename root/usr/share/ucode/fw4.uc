@@ -2509,6 +2509,7 @@ return {
 			switch (r.target) {
 			case "dnat":
 				r.chain = sprintf("dstnat_%s", r.src.zone.name);
+				r.src.zone.dflags.dnat = true;
 
 				if (!r.raddr)
 					r.target = "redirect";
@@ -2517,6 +2518,7 @@ return {
 
 			case "snat":
 				r.chain = sprintf("srcnat_%s", r.dest.zone.name);
+				r.dest.zone.dflags.snat = true;
 				break;
 			}
 
@@ -2593,7 +2595,7 @@ return {
 						mark: redir.mark
 					};
 
-					let eaddrs = subnets_split_af(length(dip) ? dip : { addrs: redir.src.zone.related_subnets });
+					let eaddrs = length(dip) ? dip : subnets_split_af({ addrs: map(redir.src.zone.related_subnets, to_hostaddr) });
 					let rzones = length(redir.reflection_zone) ? redir.reflection_zone : [ redir.dest ];
 
 					for (let rzone in rzones) {
@@ -2607,34 +2609,46 @@ return {
 						let iaddrs = subnets_split_af({ addrs: rzone.zone.related_subnets });
 						let refaddrs = (redir.reflection_src == "internal") ? iaddrs : eaddrs;
 
-						refaddrs = [
-							map(refaddrs[0], to_hostaddr),
-							map(refaddrs[1], to_hostaddr)
-						];
-
-						eaddrs = [
-							map(eaddrs[0], to_hostaddr),
-							map(eaddrs[1], to_hostaddr)
-						];
-
 						for (let i = 0; i <= 1; i++) {
 							if (length(rip[i])) {
-								refredir.src = rzone;
-								refredir.dest = null;
-								refredir.target = "dnat";
+								let snat_addr = refaddrs[i]?.[0];
 
-								for (let saddrs in subnets_group_by_masking(iaddrs[i]))
-									for (let daddrs in subnets_group_by_masking(eaddrs[i]))
-										add_rule(i ? 6 : 4, proto, saddrs, daddrs, rip[i], sport, dport, rport, null, refredir);
+								/* For internal reflection sources try to find a suitable candiate IP
+								 * among the reflection zone subnets which is within the same subnet
+								 * as the original DNAT destination. If we can't find any matching
+								 * one then simply take the first candidate. */
+								if (redir.reflection_src == "internal") {
+									for (let zone_addr in rzone.zone.related_subnets) {
+										if (zone_addr.family != rip[i][0].family)
+											continue;
 
-								for (let refaddr in refaddrs[i]) {
+										let r = apply_mask(rip[i][0].addr, zone_addr.mask);
+										let a = apply_mask(zone_addr.addr, zone_addr.mask);
+
+										if (r != a)
+											continue;
+
+										snat_addr = zone_addr;
+										break;
+									}
+								}
+
+								if (snat_addr) {
+									refredir.src = rzone;
+									refredir.dest = null;
+									refredir.target = "dnat";
+
+									for (let saddrs in subnets_group_by_masking(iaddrs[i]))
+										for (let daddrs in subnets_group_by_masking(eaddrs[i]))
+											add_rule(i ? 6 : 4, proto, saddrs, daddrs, rip[i], sport, dport, rport, null, refredir);
+
 									refredir.src = null;
 									refredir.dest = rzone;
 									refredir.target = "snat";
 
-									for (let saddrs in subnets_group_by_masking(iaddrs[i]))
-										for (let daddrs in subnets_group_by_masking(rip[i]))
-											add_rule(i ? 6 : 4, proto, saddrs, daddrs, [ refaddr ], null, rport, null, null, refredir);
+									for (let daddrs in subnets_group_by_masking(rip[i]))
+										for (let saddrs in subnets_group_by_masking(iaddrs[i]))
+											add_rule(i ? 6 : 4, proto, saddrs, daddrs, [ to_hostaddr(snat_addr) ], null, rport, null, null, refredir);
 								}
 							}
 						}
