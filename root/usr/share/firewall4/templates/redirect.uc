@@ -58,7 +58,7 @@
 {%+ if (redirect.counter): -%}
 	counter {%+ endif -%}
 {% if (redirect.target == "redirect"): -%}
-	redirect to {{ fw4.port(redirect.rport) }}
+	redirect{% if (redirect.rport): %} to {{ fw4.port(redirect.rport) }}{% endif %}
 {%- elif (redirect.target == "accept" || redirect.target == "masquerade"): -%}
 	{{ redirect.target }}
 {%- else -%}
