@@ -1,0 +1,271 @@
+Test various address selection rules in redirect rules.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "wan",
+			"network": [ "wan", "wan6" ],
+			"masq": 1,
+			"masq6": 1
+		},
+		{
+			"name": "lan",
+			"network": "lan",
+			"auto_helper": 0
+		}
+	],
+	"redirect": [
+		{
+			".description": "Ensure unspecified family with no src, dest or rewrite address is treated as IPv4 only",
+			"name": "Redirect test #1",
+			"src": "lan",
+			"dest": "wan",
+			"proto": "udp",
+			"src_dport": "53",
+			"dest_port": "53",
+			"target": "dnat"
+		},
+		{
+			".description": "Ensure that explicit family any with no src, dest or rewrite address is treated as IPv4/IPv6",
+			"name": "Redirect test #2",
+			"family": "any",
+			"src": "lan",
+			"dest": "wan",
+			"proto": "udp",
+			"src_dport": "53",
+			"dest_port": "53",
+			"target": "dnat"
+		},
+		{
+			".description": "Ensure that a DNAT without explicit dest zone infers the zone from the rewrite address",
+			"name": "Redirect test #3",
+			"src": "wan",
+			"proto": "tcp",
+			"src_dport": "22",
+			"dest_ip": "192.168.26.100"
+		},
+		{
+			".description": "Ensure that external reflection source uses the src zone addr as reflection source IP",
+			"name": "Redirect test #4",
+			"src": "wan",
+			"proto": "tcp",
+			"src_dport": "23",
+			"dest_ip": "192.168.26.100",
+			"reflection_src": "external"
+		}
+	]
+}
+-- End --
+
+-- Expect stderr --
+[!] Section @redirect[2] (Redirect test #3) does not specify a destination, assuming 'lan'
+[!] Section @redirect[3] (Redirect test #4) does not specify a destination, assuming 'lan'
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define wan_devices = { "eth1" }
+	define wan_subnets = { 10.11.12.0/24, 2001:db8:54:321::/64 }
+	define lan_devices = { "br-lan" }
+	define lan_subnets = { 10.0.0.0/24, 192.168.26.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_wan {
+		ct status dnat accept comment "!fw4: Accept port redirections"
+		jump drop_from_wan
+	}
+
+	chain output_wan {
+		jump drop_to_wan
+	}
+
+	chain forward_wan {
+		ct status dnat accept comment "!fw4: Accept port forwards"
+		jump drop_to_wan
+	}
+
+	chain drop_from_wan {
+		iifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_wan {
+		oifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+	}
+
+	chain input_lan {
+		ct status dnat accept comment "!fw4: Accept port redirections"
+		jump drop_from_lan
+	}
+
+	chain output_lan {
+		jump drop_to_lan
+	}
+
+	chain forward_lan {
+		ct status dnat accept comment "!fw4: Accept port forwards"
+		jump drop_to_lan
+	}
+
+	chain accept_to_lan {
+		oifname "br-lan" counter accept comment "!fw4: accept lan IPv4/IPv6 traffic"
+	}
+
+	chain drop_from_lan {
+		iifname "br-lan" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_lan {
+		oifname "br-lan" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+		iifname "eth1" jump dstnat_wan comment "!fw4: Handle wan IPv4/IPv6 dstnat traffic"
+		iifname "br-lan" jump dstnat_lan comment "!fw4: Handle lan IPv4/IPv6 dstnat traffic"
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "eth1" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
+		oifname "br-lan" jump srcnat_lan comment "!fw4: Handle lan IPv4/IPv6 srcnat traffic"
+	}
+
+	chain dstnat_wan {
+		meta nfproto ipv4 tcp dport 22 counter dnat 192.168.26.100:22 comment "!fw4: Redirect test #3"
+		meta nfproto ipv4 tcp dport 23 counter dnat 192.168.26.100:23 comment "!fw4: Redirect test #4"
+	}
+
+	chain srcnat_wan {
+		meta nfproto ipv4 masquerade comment "!fw4: Masquerade IPv4 wan traffic"
+		meta nfproto ipv6 masquerade comment "!fw4: Masquerade IPv6 wan traffic"
+	}
+
+	chain dstnat_lan {
+		meta nfproto ipv4 udp dport 53 counter redirect to 53 comment "!fw4: Redirect test #1"
+		udp dport 53 counter redirect to 53 comment "!fw4: Redirect test #2"
+		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 10.11.12.194 tcp dport 22 dnat 192.168.26.100:22 comment "!fw4: Redirect test #3 (reflection)"
+		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 10.11.12.194 tcp dport 23 dnat 192.168.26.100:23 comment "!fw4: Redirect test #4 (reflection)"
+	}
+
+	chain srcnat_lan {
+		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 192.168.26.100 tcp dport 22 snat 192.168.26.1 comment "!fw4: Redirect test #3 (reflection)"
+		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 192.168.26.100 tcp dport 23 snat 10.11.12.194 comment "!fw4: Redirect test #4 (reflection)"
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --

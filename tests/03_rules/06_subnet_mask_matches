@@ -267,8 +267,7 @@ table inet fw4 {
 	}
 
 	chain srcnat_lan {
-		ip6 saddr 2001:db8:1000::/60 ip6 daddr ::99 snat 2001:db8:1000:1::1 comment "!fw4: Mask rule #3 (reflection)"
-		ip6 saddr fd63:e2f:f706::/60 ip6 daddr ::99 snat fd63:e2f:f706:1::1 comment "!fw4: Mask rule #3 (reflection)"
+		ip6 saddr { 2001:db8:1000::/60, fd63:e2f:f706::/60 } ip6 daddr ::99 snat 2001:db8:1000:1::1 comment "!fw4: Mask rule #3 (reflection)"
 	}
 
 	chain dstnat_guest {
@@ -276,8 +275,7 @@ table inet fw4 {
 	}
 
 	chain srcnat_guest {
-		ip6 saddr 2001:db8:1000::/60 ip6 daddr ::99 snat 2001:db8:1000:2::1 comment "!fw4: Mask rule #3 (reflection)"
-		ip6 saddr fd63:e2f:f706::/60 ip6 daddr ::99 snat fd63:e2f:f706:2::1 comment "!fw4: Mask rule #3 (reflection)"
+		ip6 saddr { 2001:db8:1000::/60, fd63:e2f:f706::/60 } ip6 daddr ::99 snat 2001:db8:1000:2::1 comment "!fw4: Mask rule #3 (reflection)"
 	}
 
 
