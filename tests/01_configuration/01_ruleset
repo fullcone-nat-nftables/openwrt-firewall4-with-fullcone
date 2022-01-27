@@ -26,7 +26,7 @@ table inet fw4 {
 
 	flowtable ft {
 		hook ingress priority 0;
-		devices = { "br-lan", "wan" };
+		devices = { "br-lan", "eth1" };
 		flags offload;
 	}
 
@@ -40,9 +40,9 @@ table inet fw4 {
 	#
 
 	define lan_devices = { "br-lan" }
-	define lan_subnets = { 192.168.26.0/24, fd63:e2f:f706::/60 }
-	define wan_devices = { "wan" }
-	define wan_subnets = { 10.11.12.0/24 }
+	define lan_subnets = { 10.0.0.0/24, 192.168.26.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
+	define wan_devices = { "eth1" }
+	define wan_subnets = { 10.11.12.0/24, 2001:db8:54:321::/64 }
 
 	#
 	# User includes
@@ -63,7 +63,7 @@ table inet fw4 {
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
 		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
 		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
-		iifname "wan" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
 	}
 
 	chain forward {
@@ -72,7 +72,7 @@ table inet fw4 {
 		meta l4proto { tcp, udp } flow offload @ft;
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
 		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
-		iifname "wan" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
 		jump handle_reject
 	}
 
@@ -84,7 +84,7 @@ table inet fw4 {
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
 		meta l4proto tcp counter comment "!fw4: Test-Deprecated-Rule-Option"
 		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
-		oifname "wan" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 	}
 
 	chain handle_reject {
@@ -142,15 +142,15 @@ table inet fw4 {
 	}
 
 	chain accept_to_wan {
-		oifname "wan" counter accept comment "!fw4: accept wan IPv4/IPv6 traffic"
+		oifname "eth1" counter accept comment "!fw4: accept wan IPv4/IPv6 traffic"
 	}
 
 	chain reject_from_wan {
-		iifname "wan" counter jump handle_reject comment "!fw4: reject wan IPv4/IPv6 traffic"
+		iifname "eth1" counter jump handle_reject comment "!fw4: reject wan IPv4/IPv6 traffic"
 	}
 
 	chain reject_to_wan {
-		oifname "wan" counter jump handle_reject comment "!fw4: reject wan IPv4/IPv6 traffic"
+		oifname "eth1" counter jump handle_reject comment "!fw4: reject wan IPv4/IPv6 traffic"
 	}
 
 
@@ -164,7 +164,7 @@ table inet fw4 {
 
 	chain srcnat {
 		type nat hook postrouting priority srcnat; policy accept;
-		oifname "wan" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
+		oifname "eth1" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
 	}
 
 	chain srcnat_wan {
@@ -271,8 +271,8 @@ table inet fw4 {
 
 	chain mangle_forward {
 		type filter hook forward priority mangle; policy accept;
-		iifname "wan" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 ingress MTU fixing"
-		oifname "wan" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 egress MTU fixing"
+		iifname "eth1" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 ingress MTU fixing"
+		oifname "eth1" tcp flags syn tcp option maxseg size set rt mtu comment "!fw4: Zone wan IPv4/IPv6 egress MTU fixing"
 	}
 }
 -- End --
