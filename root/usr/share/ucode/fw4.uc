@@ -2425,16 +2425,16 @@ return {
 
 		if (redir.target == "dnat") {
 			if (!redir.src)
-				return this.warn_section(r, "has no source specified");
+				return this.warn_section(data, "has no source specified");
 			else if (redir.src.any)
-				return this.warn_section(r, "must not have source '*' for dnat target");
+				return this.warn_section(data, "must not have source '*' for dnat target");
 			else if (redir.dest_ip && redir.dest_ip.invert)
-				return this.warn_section(r, "must not specify a negated 'dest_ip' value");
+				return this.warn_section(data, "must not specify a negated 'dest_ip' value");
 			else if (redir.dest_ip && length(filter(redir.dest_ip.addrs, a => a.bits == -1)))
 				return this.warn_section(data, "must not use non-contiguous masks in 'dest_ip'");
 
 			if (!redir.dest && redir.dest_ip && resolve_dest(redir))
-				this.warn_section(r, "does not specify a destination, assuming '" + redir.dest.zone.name + "'");
+				this.warn_section(data, "does not specify a destination, assuming '" + redir.dest.zone.name + "'");
 
 			if (!redir.dest_port)
 				redir.dest_port = redir.src_dport;
