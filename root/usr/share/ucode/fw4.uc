@@ -2282,7 +2282,7 @@ return {
 
 			name: [ "string", this.section_id(data[".name"]) ],
 			_name: [ "string", null, DEPRECATED ],
-			family: [ "family", "4" ],
+			family: [ "family" ],
 
 			src: [ "zone_ref" ],
 			dest: [ "zone_ref" ],
@@ -2610,15 +2610,19 @@ return {
 
 			/* check if there's no AF specific bits, in this case we can do an AF agnostic rule */
 			if (!family && !length(sip[0]) && !length(sip[1]) && !length(dip[0]) && !length(dip[1]) && !length(rip[0]) && !length(rip[1])) {
-				add_rule(0, proto, null, null, null, sport, dport, rport, null, redir);
+				/* for backwards compatibility, treat unspecified family as IPv4 unless user explicitly requested any (0) */
+				if (family == null)
+					family = 4;
+
+				add_rule(family, proto, null, null, null, sport, dport, rport, null, redir);
 			}
 
 			/* we need to emit one or two AF specific rules */
 			else {
-				if (family == 0 || family == 4)
+				if ((!family || family == 4) && (length(sip[0]) || length(dip[0]) || length(rip[0])))
 					add_rule(4, proto, sip[0], dip[0], rip[0], sport, dport, rport, ipset, redir);
 
-				if (family == 0 || family == 6)
+				if ((!family || family == 6) && (length(sip[1]) || length(dip[1]) || length(rip[1])))
 					add_rule(6, proto, sip[1], dip[1], rip[1], sport, dport, rport, ipset, redir);
 			}
 		}
