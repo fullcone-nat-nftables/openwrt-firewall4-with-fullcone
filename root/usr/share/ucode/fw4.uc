@@ -116,6 +116,7 @@ let dscp_classes = {
 	"CS6": 0x30,
 	"CS7": 0x38,
 	"BE": 0x00,
+	"LE": 0x01,
 	"AF11": 0x0a,
 	"AF12": 0x0c,
 	"AF13": 0x0e,
