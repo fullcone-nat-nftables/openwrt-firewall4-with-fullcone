@@ -93,7 +93,7 @@ table inet fw4 {
 	}
 
 	chain syn_flood {
-		tcp flags & (fin | syn | rst | ack) == syn limit rate 25/second burst 50 packets return comment "!fw4: Accept SYN packets below rate-limit"
+		limit rate 25/second burst 50 packets return comment "!fw4: Accept SYN packets below rate-limit"
 		drop comment "!fw4: Drop excess packets"
 	}
 

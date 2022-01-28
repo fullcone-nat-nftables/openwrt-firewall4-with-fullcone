@@ -70,7 +70,7 @@ table inet fw4 {
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
 {% endif %}
-{% if (fw4.default_option("synflood_protect")): %}
+{% if (fw4.default_option("synflood_protect") && fw4.default_option("synflood_rate")): %}
 		tcp flags & (fin | syn | rst | ack) == syn jump syn_flood comment "!fw4: Rate limit TCP syn packets"
 {% endif %}
 {% for (let rule in fw4.rules("input")): %}
@@ -138,13 +138,12 @@ table inet fw4 {
 		}} comment "!fw4: Reject any other traffic"
 	}
 
-{% if (fw4.default_option("synflood_protect")):
+{% if (fw4.default_option("synflood_protect") && fw4.default_option("synflood_rate")):
 	let r = fw4.default_option("synflood_rate");
 	let b = fw4.default_option("synflood_burst");
 %}
 	chain syn_flood {
-		tcp flags & (fin | syn | rst | ack) == syn
-		{%- if (r): %} limit rate {{ r.rate }}/{{ r.unit }}{% endif %}
+		limit rate {{ r.rate }}/{{ r.unit }}
 		{%- if (b): %} burst {{ b }} packets{% endif %} return comment "!fw4: Accept SYN packets below rate-limit"
 		drop comment "!fw4: Drop excess packets"
 	}
