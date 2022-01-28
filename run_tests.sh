@@ -70,7 +70,7 @@ run_testcase() {
 	local code=$7
 	local fail=0
 
-	ucode ${uenv:+-e "$uenv"} -e '{
+	ucode -S ${uenv:+-e "$uenv"} -e '{
 		"MOCK_SEARCH_PATH": [
 			"'"$dir"'/files",
 			"./tests/mocks"

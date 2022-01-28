@@ -23,6 +23,7 @@
 
 	let fixup_config = (config) => {
 		let rv = {};
+		let n_section = 0;
 
 		for (let stype in config) {
 			switch (type(config[stype])) {

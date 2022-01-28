@@ -1,4 +1,14 @@
 {%
+	/* strict mode compliance: ensure that global variabes are defined */
+	if (!exists(global, 'REQUIRE_SEARCH_PATH'))
+		global.MOCK_SEARCH_PATH = null;
+
+	if (!exists(global, 'MOCK_SEARCH_PATH'))
+		global.MOCK_SEARCH_PATH = null;
+
+	if (!exists(global, 'TRACE_CALLS'))
+		global.TRACE_CALLS = null;
+
 	let _fs = require("fs");
 
 	/* Force reloading fs module on next require */
