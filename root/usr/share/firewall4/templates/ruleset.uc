@@ -274,7 +274,7 @@ table inet fw4 {
 {%     if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
 		{%+ if (rule.family): -%}
 			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ include("zone-match.uc", { fw4, rule: { ...rule, devices_pos, subnets_pos } }) -%}
+		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
 		jump {{ target }}_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} {{
 			(target == "helper") ? "CT helper assignment" : "CT bypass"
 		}}"
@@ -296,7 +296,7 @@ table inet fw4 {
 {%     if (devices_pos || subnets_pos): %}
 		{%+ if (rule.family): -%}
 			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ include("zone-match.uc", { fw4, rule: { ...rule, devices_pos, subnets_pos } }) -%}
+		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
 		jump {{ target }}_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} {{
 			(target == "helper") ? "CT helper assignment" : "CT bypass"
 		}}"
