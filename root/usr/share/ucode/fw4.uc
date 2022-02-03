@@ -2572,10 +2572,7 @@ return {
 				}
 
 				/* build reflection rules */
-				if (redir.reflection && (length(rip[0]) || length(rip[1])) &&
-				    redir.src && redir.src.zone && redir.src.zone[family == 4 ? "masq" : "masq6"] &&
-				    redir.dest && redir.dest.zone) {
-
+				if (redir.reflection && (length(rip[0]) || length(rip[1])) && redir.src?.zone && redir.dest?.zone) {
 					let refredir = {
 						name: redir.name + " (reflection)",
 
@@ -2611,7 +2608,7 @@ return {
 						let refaddrs = (redir.reflection_src == "internal") ? iaddrs : eaddrs;
 
 						for (let i = 0; i <= 1; i++) {
-							if (length(rip[i])) {
+							if (redir.src.zone[i ? "masq6" : "masq"] && length(rip[i])) {
 								let snat_addr = refaddrs[i]?.[0];
 
 								/* For internal reflection sources try to find a suitable candiate IP
