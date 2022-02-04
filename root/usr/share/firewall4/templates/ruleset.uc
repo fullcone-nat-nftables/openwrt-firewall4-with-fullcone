@@ -1,18 +1,20 @@
+{% let flowtable_devices = fw4.resolve_offload_devices(); -%}
+
 table inet fw4
 flush table inet fw4
-{% if (flowtable): %}
+{% if (fw4.check_flowtable()): %}
 delete flowtable inet fw4 ft
 {% endif %}
 
 table inet fw4 {
-{% if (fw4.default_option("flow_offloading") && length(devices) > 0): %}
+{% if (length(flowtable_devices) > 0): %}
 	#
 	# Flowtable
 	#
 
 	flowtable ft {
 		hook ingress priority 0;
-		devices = {{ fw4.set(devices, true) }};
+		devices = {{ fw4.set(flowtable_devices, true) }};
 {% if (fw4.default_option("flow_offloading_hw")): %}
 		flags offload;
 {% endif %}
@@ -90,7 +92,7 @@ table inet fw4 {
 	chain forward {
 		type filter hook forward priority filter; policy {{ fw4.forward_policy(true) }};
 
-{% if (fw4.default_option("flow_offloading") && length(devices) > 0): %}
+{% if (length(flowtable_devices) > 0): %}
 		meta l4proto { tcp, udp } flow offload @ft;
 {% endif %}
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"

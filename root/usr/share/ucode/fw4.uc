@@ -359,6 +359,51 @@ function map_setmatch(set, match, proto) {
 	return fields;
 }
 
+function resolve_lower_devices(devstatus, devname) {
+	let dir = fs.opendir("/sys/class/net/" + devname);
+	let devs = [];
+
+	if (dir) {
+		if (!devstatus || devstatus[devname]?.["hw-tc-offload"]) {
+			push(devs, devname);
+		}
+		else {
+			let e;
+
+			while ((e = dir.read()) != null)
+				if (index(e, "lower_") === 0)
+					push(devs, ...resolve_lower_devices(devstatus, substr(e, 6)));
+		}
+
+		dir.close();
+	}
+
+	return devs;
+}
+
+function nft_json_command(...args) {
+	let cmd = [ "/usr/sbin/nft", "--terse", "--json", ...args ];
+	let nft = fs.popen(join(" ", cmd), "r");
+	let info;
+
+	if (nft) {
+		try {
+			info = filter(json(nft.read("all"))?.nftables,
+				item => (type(item) == "object" && !item.metainfo));
+		}
+		catch (e) {
+			warn(sprintf("Unable to parse nftables JSON output: %s\n", e));
+		}
+
+		nft.close();
+	}
+	else {
+		warn(sprintf("Unable to popen() %s: %s\n", cmd, fs.error()));
+	}
+
+	return info || [];
+}
+
 
 return {
 	read_kernel_version: function() {
@@ -373,6 +418,47 @@ return {
 		}
 
 		return v;
+	},
+
+	resolve_offload_devices: function() {
+		if (!this.default_option("flow_offloading"))
+			return [];
+
+		let devstatus = null;
+		let devices = [];
+
+		if (this.default_option("flow_offloading_hw")) {
+			let bus = ubus.connect();
+
+			if (bus) {
+				devstatus = bus.call("network.device", "status") || {};
+				bus.disconnect();
+			}
+		}
+
+		for (let zone in fw4.zones())
+			for (let device in zone.match_devices)
+				push(devices, ...resolve_lower_devices(devstatus, device));
+
+		return uniq(devices);
+	},
+
+	check_set_types: function() {
+		let sets = {};
+
+		for (let item in nft_json_command("list", "sets", "inet"))
+			if (item.set?.table == "fw4")
+				sets[item.set.name] = (type(item.set.type) == "array") ? item.set.type : [ item.set.type ];
+
+		return sets;
+	},
+
+	check_flowtable: function() {
+		for (let item in nft_json_command("list", "flowtables", "inet"))
+			if (item.flowtable?.table == "fw4" && item.flowtable?.name == "ft")
+				return true;
+
+		return false;
 	},
 
 	read_state: function() {
