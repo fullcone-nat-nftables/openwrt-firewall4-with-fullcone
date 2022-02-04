@@ -1,6 +1,8 @@
 {%
 
 let fw4 = require("fw4");
+let ubus = require("ubus");
+let fs = require("fs");
 
 /* Find existing sets.
  *
@@ -94,14 +96,81 @@ function reload_sets() {
 	}
 }
 
-function render_ruleset(use_statefile) {
+function resolve_lower_devices(devstatus, devname) {
+	let dir = fs.opendir("/sys/class/net/" + devname);
+	let devs = [];
+
+	if (dir) {
+		if (!devstatus || devstatus[devname]?.["hw-tc-offload"]) {
+			push(devs, devname);
+		}
+		else {
+			let e;
+
+			while ((e = dir.read()) != null)
+				if (index(e, "lower_") === 0)
+					push(devs, ...resolve_lower_devices(devstatus, substr(e, 6)));
+		}
+
+		dir.close();
+	}
+
+	return devs;
+}
+
+function resolve_offload_devices() {
+	if (!fw4.default_option("flow_offloading"))
+		return [];
+
+	let devstatus = null;
 	let devices = [];
 
+	if (fw4.default_option("flow_offloading_hw")) {
+		let bus = require("ubus").connect();
+
+		if (bus) {
+			devstatus = bus.call("network.device", "status") || {};
+			bus.disconnect();
+		}
+	}
+
+	for (let zone in fw4.zones())
+		for (let device in zone.match_devices)
+			push(devices, ...resolve_lower_devices(devstatus, device));
+
+	return uniq(devices);
+}
+
+function check_flowtable() {
+	let nft = fs.popen("nft --terse --json list flowtables inet");
+	let info;
+
+	if (nft) {
+		try {
+			info = json(nft.read("all"));
+		}
+		catch (e) {
+			info = {};
+		}
+
+		nft.close();
+	}
+
+	for (let item in info?.nftables)
+		if (item?.flowtable?.table == "fw4" && item?.flowtable?.name == "ft")
+			return true;
+
+	return false;
+}
+
+function render_ruleset(use_statefile) {
 	fw4.load(use_statefile);
 
-	map(fw4.zones(), zone => push(devices, ...zone.match_devices));
-
-	include("templates/ruleset.uc", { fw4, type, exists, length, include, devices: sort(devices) });
+	include("templates/ruleset.uc", {
+		fw4, type, exists, length, include,
+		devices: resolve_offload_devices(),
+		flowtable: check_flowtable()
+	});
 }
 
 function lookup_network(net) {

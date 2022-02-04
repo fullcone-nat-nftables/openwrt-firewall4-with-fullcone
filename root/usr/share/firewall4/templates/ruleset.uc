@@ -1,5 +1,8 @@
 table inet fw4
 flush table inet fw4
+{% if (flowtable): %}
+delete flowtable inet fw4 ft
+{% endif %}
 
 table inet fw4 {
 {% if (fw4.default_option("flow_offloading") && length(devices) > 0): %}
