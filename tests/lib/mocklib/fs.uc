@@ -46,7 +46,7 @@
 				return null;
 			}
 
-			printf("fs.popen() cmdline <%s> mode <%s>\n", cmdline, mode);
+			mocklib.trace_call("fs", "popen", { cmdline, mode });
 
 			return {
 				read: function(amount) {
