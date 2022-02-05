@@ -136,5 +136,40 @@
 			};
 		},
 
+		opendir: (path) => {
+			let file = sprintf("fs/opendir~%s.json", replace(path, /[^A-Za-z0-9_-]+/g, '_')),
+			    mock = mocklib.read_json_file(file),
+			    index = 0;
+
+			if (!mock || mock != mock) {
+				mocklib.I("No stat result fixture defined for fs.opendir() call on %s.", path);
+				mocklib.I("Provide a mock result through the following JSON file:\n%s\n", file);
+
+				mock = [];
+			}
+
+			mocklib.trace_call("fs", "opendir", { path });
+
+			return {
+				read: function() {
+					return mock[index++];
+				},
+
+				tell: function() {
+					return index;
+				},
+
+				seek: function(i) {
+					index = i;
+				},
+
+				close: function() {},
+
+				error: function() {
+					return null;
+				}
+			};
+		},
+
 		error: () => "Unspecified error"
 	};
