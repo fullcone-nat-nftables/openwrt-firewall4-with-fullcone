@@ -1993,9 +1993,9 @@ return {
 			let f1 = fwd.src.zone ? fwd.src.zone.family : 0;
 			let f2 = fwd.dest.zone ? fwd.dest.zone.family : 0;
 
-			if (f1 != 0 && f2 != 0 && f1 != f2) {
+			if (f1 && f2 && f1 != f2) {
 				this.warn_section(data,
-					sprintf("references src %s restricted to %s and dest restricted to %s, ignoring forwarding",
+					sprintf("references src %s restricted to %s and dest %s restricted to %s, ignoring forwarding",
 					        fwd.src.zone.name, this.nfproto(f1, true),
 					        fwd.dest.zone.name, this.nfproto(f2, true)));
 
