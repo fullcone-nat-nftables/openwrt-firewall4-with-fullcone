@@ -404,6 +404,20 @@ function nft_json_command(...args) {
 	return info || [];
 }
 
+function nft_try_hw_offload(devices) {
+	let nft_test =
+		'add table inet fw4-hw-offload-test; ' +
+		'add flowtable inet fw4-hw-offload-test ft { ' +
+			'hook ingress priority 0; ' +
+			'devices = { "' + join('", "', devices) + '" }; ' +
+			'flags offload; ' +
+		'}';
+
+	let rc = system(sprintf("/usr/sbin/nft -c '%s' 2>/dev/null", replace(nft_test, "'", "'\\''")));
+
+	return (rc == 0);
+}
+
 
 return {
 	read_kernel_version: function() {
@@ -434,11 +448,25 @@ return {
 				devstatus = bus.call("network.device", "status") || {};
 				bus.disconnect();
 			}
+
+			for (let zone in this.zones())
+				for (let device in zone.match_devices)
+					push(devices, ...resolve_lower_devices(devstatus, device));
+
+			devices = uniq(devices);
+
+			if (nft_try_hw_offload(devices))
+				return devices;
+
+			this.warn('Hardware flow offloading unavailable, falling back to software offloading');
+			this.state.defaults.flow_offloading_hw = false;
 		}
 
-		for (let zone in fw4.zones())
+		devices = [];
+
+		for (let zone in this.zones())
 			for (let device in zone.match_devices)
-				push(devices, ...resolve_lower_devices(devstatus, device));
+				push(devices, ...resolve_lower_devices(null, device));
 
 		return uniq(devices);
 	},
