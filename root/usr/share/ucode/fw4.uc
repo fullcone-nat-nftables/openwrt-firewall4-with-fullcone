@@ -661,18 +661,18 @@ return {
 
 
 		//
-		// Build list of forwardings
-		//
-
-		this.cursor.foreach("firewall", "forwarding", f => self.parse_forwarding(f));
-
-
-		//
 		// Build list of rules
 		//
 
 		map(filter(this.state.ubus_rules, r => (r.type == "rule")), r => self.parse_rule(r));
 		this.cursor.foreach("firewall", "rule", r => self.parse_rule(r));
+
+
+		//
+		// Build list of forwardings
+		//
+
+		this.cursor.foreach("firewall", "forwarding", f => self.parse_forwarding(f));
 
 
 		//
