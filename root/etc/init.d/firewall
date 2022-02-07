@@ -28,5 +28,5 @@ boot() {
 	# Be silent on boot, firewall might be started by hotplug already,
 	# so don't complain in syslog.
 	QUIET=-q
-	start_service
+	start
 }
