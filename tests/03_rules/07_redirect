@@ -30,6 +30,12 @@ Test various address selection rules in redirect rules.
 			"name": "lan",
 			"network": "lan",
 			"auto_helper": 0
+		},
+		{
+			"name": "noaddr",
+			"network": [ "noaddr" ],
+			"masq": 1,
+			"masq6": 1
 		}
 	],
 	"redirect": [
@@ -70,6 +76,15 @@ Test various address selection rules in redirect rules.
 			"src_dport": "23",
 			"dest_ip": "192.168.26.100",
 			"reflection_src": "external"
+		},
+		{
+			".description": "Ensure that reflection is disabled if external address cannot be determined",
+			"name": "Redirect test #5",
+			"src": "noaddr",
+			"dest": "lan",
+			"proto": "tcp",
+			"src_dport": "24",
+			"dest_ip": "192.168.26.100"
 		}
 	]
 }
@@ -78,6 +93,7 @@ Test various address selection rules in redirect rules.
 -- Expect stderr --
 [!] Section @redirect[2] (Redirect test #3) does not specify a destination, assuming 'lan'
 [!] Section @redirect[3] (Redirect test #4) does not specify a destination, assuming 'lan'
+[!] Section @redirect[4] (Redirect test #5) external address range cannot be determined, disabling reflection
 -- End --
 
 -- Expect stdout --
@@ -98,6 +114,7 @@ table inet fw4 {
 	define wan_subnets = { 10.11.12.0/24, 2001:db8:54:321::/64 }
 	define lan_devices = { "br-lan" }
 	define lan_subnets = { 10.0.0.0/24, 192.168.26.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
+	define noaddr_devices = { "wwan0" }
 
 	#
 	# User includes
@@ -118,6 +135,7 @@ table inet fw4 {
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
 		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
 		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
+		iifname "wwan0" jump input_noaddr comment "!fw4: Handle noaddr IPv4/IPv6 input traffic"
 	}
 
 	chain forward {
@@ -126,6 +144,7 @@ table inet fw4 {
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
 		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
 		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
+		iifname "wwan0" jump forward_noaddr comment "!fw4: Handle noaddr IPv4/IPv6 forward traffic"
 	}
 
 	chain output {
@@ -136,6 +155,7 @@ table inet fw4 {
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
 		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
+		oifname "wwan0" jump output_noaddr comment "!fw4: Handle noaddr IPv4/IPv6 output traffic"
 	}
 
 	chain handle_reject {
@@ -191,6 +211,28 @@ table inet fw4 {
 		oifname "br-lan" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
 	}
 
+	chain input_noaddr {
+		ct status dnat accept comment "!fw4: Accept port redirections"
+		jump drop_from_noaddr
+	}
+
+	chain output_noaddr {
+		jump drop_to_noaddr
+	}
+
+	chain forward_noaddr {
+		ct status dnat accept comment "!fw4: Accept port forwards"
+		jump drop_to_noaddr
+	}
+
+	chain drop_from_noaddr {
+		iifname "wwan0" counter drop comment "!fw4: drop noaddr IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_noaddr {
+		oifname "wwan0" counter drop comment "!fw4: drop noaddr IPv4/IPv6 traffic"
+	}
+
 
 	#
 	# NAT rules
@@ -200,12 +242,14 @@ table inet fw4 {
 		type nat hook prerouting priority dstnat; policy accept;
 		iifname "eth1" jump dstnat_wan comment "!fw4: Handle wan IPv4/IPv6 dstnat traffic"
 		iifname "br-lan" jump dstnat_lan comment "!fw4: Handle lan IPv4/IPv6 dstnat traffic"
+		iifname "wwan0" jump dstnat_noaddr comment "!fw4: Handle noaddr IPv4/IPv6 dstnat traffic"
 	}
 
 	chain srcnat {
 		type nat hook postrouting priority srcnat; policy accept;
 		oifname "eth1" jump srcnat_wan comment "!fw4: Handle wan IPv4/IPv6 srcnat traffic"
 		oifname "br-lan" jump srcnat_lan comment "!fw4: Handle lan IPv4/IPv6 srcnat traffic"
+		oifname "wwan0" jump srcnat_noaddr comment "!fw4: Handle noaddr IPv4/IPv6 srcnat traffic"
 	}
 
 	chain dstnat_wan {
@@ -228,6 +272,15 @@ table inet fw4 {
 	chain srcnat_lan {
 		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 192.168.26.100 tcp dport 22 snat 192.168.26.1 comment "!fw4: Redirect test #3 (reflection)"
 		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 192.168.26.100 tcp dport 23 snat 10.11.12.194 comment "!fw4: Redirect test #4 (reflection)"
+	}
+
+	chain dstnat_noaddr {
+		meta nfproto ipv4 tcp dport 24 counter dnat 192.168.26.100:24 comment "!fw4: Redirect test #5"
+	}
+
+	chain srcnat_noaddr {
+		meta nfproto ipv4 masquerade comment "!fw4: Masquerade IPv4 noaddr traffic"
+		meta nfproto ipv6 masquerade comment "!fw4: Masquerade IPv6 noaddr traffic"
 	}
 
 

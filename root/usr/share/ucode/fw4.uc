@@ -2756,7 +2756,16 @@ return {
 									}
 								}
 
-								if (snat_addr) {
+								if (!snat_addr) {
+									this.warn_section(data, (redir.reflection_src || "external") + " rewrite IP cannot be determined, disabling reflection");
+								}
+								else if (!length(iaddrs[i])) {
+									this.warn_section(data, "internal address range cannot be determined, disabling reflection");
+								}
+								else if (!length(eaddrs[i])) {
+									this.warn_section(data, "external address range cannot be determined, disabling reflection");
+								}
+								else {
 									refredir.src = rzone;
 									refredir.dest = null;
 									refredir.target = "dnat";
