@@ -26,16 +26,24 @@ depending on the src and dest options.
 0x1103
 -- End --
 
+-- File fs/open~_sys_class_net_eth2_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_eth3_flags.txt --
+0x1103
+-- End --
+
 -- File uci/firewall.json --
 {
 	"zone": [
 		{
 			"name": "lan",
-			"device": "eth0"
+			"device": [ "eth0", "eth1" ]
 		},
 		{
 			"name": "wan",
-			"device": "eth1"
+			"device": [ "eth2", "eth3" ]
 		}
 	],
 	"rule": [
@@ -104,6 +112,35 @@ depending on the src and dest options.
 			"dest": "wan",
 			"target": "DSCP",
 			"set_dscp": "1"
+		},
+		{
+			".description": "Option device with no direction should override inbound ifname match",
+			"name": "Mangle rule #10",
+			"src": "*",
+			"dest": "wan",
+			"target": "DSCP",
+			"set_dscp": "1",
+			"device": "eth4"
+		},
+		{
+			".description": "Option device with direction 'in' should override inbound ifname match",
+			"name": "Mangle rule #11",
+			"src": "*",
+			"dest": "wan",
+			"target": "DSCP",
+			"set_dscp": "1",
+			"device": "eth4",
+			"direction": "in"
+		},
+		{
+			".description": "Option device with direction 'out' should override outbound ifname match",
+			"name": "Mangle rule #12",
+			"src": "*",
+			"dest": "wan",
+			"target": "DSCP",
+			"set_dscp": "1",
+			"device": "eth5",
+			"direction": "out"
 		}
 	]
 }
@@ -123,8 +160,8 @@ table inet fw4 {
 	# Defines
 	#
 
-	define lan_devices = { "eth0" }
-	define wan_devices = { "eth1" }
+	define lan_devices = { "eth0", "eth1" }
+	define wan_devices = { "eth2", "eth3" }
 
 	#
 	# User includes
@@ -143,16 +180,16 @@ table inet fw4 {
 		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
 
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
-		iifname "eth0" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
-		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+		iifname { "eth0", "eth1" } jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
+		iifname { "eth2", "eth3" } jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
 	}
 
 	chain forward {
 		type filter hook forward priority filter; policy drop;
 
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
-		iifname "eth0" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
-		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+		iifname { "eth0", "eth1" } jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
+		iifname { "eth2", "eth3" } jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
 	}
 
 	chain output {
@@ -161,8 +198,8 @@ table inet fw4 {
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
-		oifname "eth0" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
-		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+		oifname { "eth0", "eth1" } jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
+		oifname { "eth2", "eth3" } jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 	}
 
 	chain handle_reject {
@@ -183,11 +220,11 @@ table inet fw4 {
 	}
 
 	chain drop_from_lan {
-		iifname "eth0" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+		iifname { "eth0", "eth1" } counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
 	}
 
 	chain drop_to_lan {
-		oifname "eth0" counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
+		oifname { "eth0", "eth1" } counter drop comment "!fw4: drop lan IPv4/IPv6 traffic"
 	}
 
 	chain input_wan {
@@ -203,11 +240,11 @@ table inet fw4 {
 	}
 
 	chain drop_from_wan {
-		iifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+		iifname { "eth2", "eth3" } counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
 	}
 
 	chain drop_to_wan {
-		oifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+		oifname { "eth2", "eth3" } counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
 	}
 
 
@@ -230,8 +267,8 @@ table inet fw4 {
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		iifname "eth0" jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
-		iifname "eth1" jump helper_wan comment "!fw4: wan IPv4/IPv6 CT helper assignment"
+		iifname { "eth0", "eth1" } jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
+		iifname { "eth2", "eth3" } jump helper_wan comment "!fw4: wan IPv4/IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
@@ -251,26 +288,38 @@ table inet fw4 {
 
 	chain mangle_prerouting {
 		type filter hook prerouting priority mangle; policy accept;
-		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #4"
-		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #4"
-		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #4"
-		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv4 meta l4proto tcp iifname { "eth0", "eth1" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv6 meta l4proto tcp iifname { "eth0", "eth1" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv4 meta l4proto udp iifname { "eth0", "eth1" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #4"
+		meta nfproto ipv6 meta l4proto udp iifname { "eth0", "eth1" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #4"
 	}
 
 	chain mangle_postrouting {
 		type filter hook postrouting priority mangle; policy accept;
-		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #3"
-		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #3"
-		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #3"
-		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv4 meta l4proto tcp oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv6 meta l4proto tcp oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv4 meta l4proto udp oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv6 meta l4proto udp oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #3"
+		meta nfproto ipv4 meta l4proto tcp iifname "eth4" oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #10"
+		meta nfproto ipv6 meta l4proto tcp iifname "eth4" oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #10"
+		meta nfproto ipv4 meta l4proto udp iifname "eth4" oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #10"
+		meta nfproto ipv6 meta l4proto udp iifname "eth4" oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #10"
+		meta nfproto ipv4 meta l4proto tcp iifname "eth4" oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #11"
+		meta nfproto ipv6 meta l4proto tcp iifname "eth4" oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #11"
+		meta nfproto ipv4 meta l4proto udp iifname "eth4" oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #11"
+		meta nfproto ipv6 meta l4proto udp iifname "eth4" oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #11"
+		meta nfproto ipv4 meta l4proto tcp oifname "eth5" counter ip dscp set 0x1 comment "!fw4: Mangle rule #12"
+		meta nfproto ipv6 meta l4proto tcp oifname "eth5" counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #12"
+		meta nfproto ipv4 meta l4proto udp oifname "eth5" counter ip dscp set 0x1 comment "!fw4: Mangle rule #12"
+		meta nfproto ipv6 meta l4proto udp oifname "eth5" counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #12"
 	}
 
 	chain mangle_input {
 		type filter hook input priority mangle; policy accept;
-		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #5"
-		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #5"
-		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #5"
-		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv4 meta l4proto tcp iifname { "eth0", "eth1" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv6 meta l4proto tcp iifname { "eth0", "eth1" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv4 meta l4proto udp iifname { "eth0", "eth1" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #5"
+		meta nfproto ipv6 meta l4proto udp iifname { "eth0", "eth1" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #5"
 		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #6"
 		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #6"
 		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #6"
@@ -287,10 +336,10 @@ table inet fw4 {
 		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #8"
 		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #8"
 		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #8"
-		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #9"
-		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #9"
-		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #9"
-		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv4 meta l4proto tcp oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv6 meta l4proto tcp oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv4 meta l4proto udp oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #9"
+		meta nfproto ipv6 meta l4proto udp oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #9"
 	}
 
 	chain mangle_forward {
@@ -299,10 +348,10 @@ table inet fw4 {
 		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #1"
 		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #1"
 		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #1"
-		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #2"
-		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #2"
-		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #2"
-		meta nfproto ipv6 meta l4proto udp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv4 meta l4proto tcp iifname { "eth0", "eth1" } oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv6 meta l4proto tcp iifname { "eth0", "eth1" } oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv4 meta l4proto udp iifname { "eth0", "eth1" } oifname { "eth2", "eth3" } counter ip dscp set 0x1 comment "!fw4: Mangle rule #2"
+		meta nfproto ipv6 meta l4proto udp iifname { "eth0", "eth1" } oifname { "eth2", "eth3" } counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #2"
 	}
 }
 -- End --

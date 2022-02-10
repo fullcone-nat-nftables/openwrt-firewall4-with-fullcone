@@ -993,9 +993,9 @@ return {
 
 	parse_direction: function(val) {
 		if (val == 'in' || val == 'ingress')
-			return true;
-		else if (val == 'out' || val == 'egress')
 			return false;
+		else if (val == 'out' || val == 'egress')
+			return true;
 
 		return null;
 	},
@@ -2148,7 +2148,7 @@ return {
 			src: [ "zone_ref" ],
 			dest: [ "zone_ref" ],
 
-			device: [ "device" ],
+			device: [ "device", null, NO_INVERT ],
 			direction: [ "direction" ],
 
 			ipset: [ "setmatch" ],
@@ -2213,6 +2213,10 @@ return {
 		}
 		else if (rule.target == "helper" && !rule.set_helper) {
 			this.warn_section(data, "must specify option 'set_helper' for target 'helper'");
+			return;
+		}
+		else if (rule.device?.any) {
+			this.warn_section(data, "must not specify '*' as device");
 			return;
 		}
 
@@ -2303,11 +2307,15 @@ return {
 				else
 					r.chain = "mangle_output";
 
-				if (r.src?.zone)
+				if (r.src?.zone) {
 					r.src.zone.dflags[r.target] = true;
+					r.iifnames = null_if_empty(r.src.zone.match_devices);
+				}
 
-				if (r.dest?.zone)
+				if (r.dest?.zone) {
 					r.dest.zone.dflags[r.target] = true;
+					r.oifnames = null_if_empty(r.dest.zone.match_devices);
+				}
 			}
 			else {
 				r.chain = "output";
@@ -2337,6 +2345,9 @@ return {
 				else if (r.target == "reject")
 					r.jump_chain = "handle_reject";
 			}
+
+			if (r.device)
+				r[r.direction ? "oifnames" : "iifnames"] = [ r.device.device ];
 
 			this.state.rules = this.state.rules || [];
 			push(this.state.rules, r);

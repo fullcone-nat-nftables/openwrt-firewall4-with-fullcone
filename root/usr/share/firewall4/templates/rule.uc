@@ -4,6 +4,10 @@
 	meta l4proto {{
 		(rule.proto.name == 'icmp' && rule.family == 6) ? 'ipv6-icmp' : rule.proto.name
 	}} {%+ endif -%}
+{%+ if (rule.iifnames): -%}
+	iifname {{ fw4.set(rule.iifnames) }} {%+ endif -%}
+{%+ if (rule.oifnames): -%}
+	oifname {{ fw4.set(rule.oifnames) }} {%+ endif -%}
 {%+ if (rule.saddrs_pos): -%}
 	{{ fw4.ipproto(rule.family) }} saddr {{ fw4.set(rule.saddrs_pos) }} {%+ endif -%}
 {%+ if (rule.saddrs_neg): -%}
