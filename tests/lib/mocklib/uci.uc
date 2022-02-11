@@ -1,11 +1,16 @@
 {%
 	let mocklib = global.mocklib;
 
+	let byte = (str, off) => {
+		let v = ord(str, off);
+		return length(v) ? v[0] : v;
+	};
+
 	let hash = (s) => {
 		let h = 7;
 
 		for (let i = 0; i < length(s); i++)
-			h = h * 31 + ord(s, i)[0];
+			h = h * 31 + byte(s, i);
 
 		return h;
 	};
