@@ -453,7 +453,7 @@ return {
 			}
 
 			for (let zone in this.zones())
-				for (let device in zone.match_devices)
+				for (let device in zone.related_physdevs)
 					push(devices, ...resolve_lower_devices(devstatus, device));
 
 			devices = uniq(devices);
@@ -463,9 +463,9 @@ return {
 
 			this.warn('Hardware flow offloading unavailable, falling back to software offloading');
 			this.state.defaults.flow_offloading_hw = false;
-		}
 
-		devices = [];
+			devices = [];
+		}
 
 		for (let zone in this.zones())
 			for (let device in zone.match_devices)
@@ -536,6 +536,7 @@ return {
 				let net = {
 					up: ifc.up,
 					device: ifc.l3_device,
+					physdev: ifc.device,
 					zone: ifc.data?.zone
 				};
 
@@ -1883,6 +1884,7 @@ return {
 			zone.auto_helper = false;
 
 		let match_devices = [];
+		let related_physdevs = [];
 		let related_subnets = [];
 		let related_ubus_networks = [];
 		let match_subnets, masq_src_subnets, masq_dest_subnets;
@@ -1902,6 +1904,9 @@ return {
 						device: net.device
 					});
 				}
+
+				if (net.physdev && !e.invert)
+					push(related_physdevs, net.physdev);
 
 				push(related_subnets, ...(net.ipaddrs || []));
 			}
@@ -2036,6 +2041,7 @@ return {
 		zone.match_subnets = map(filter(related_subnets, s => !s.invert && s.bits != -1), this.cidr);
 
 		zone.related_subnets = related_subnets;
+		zone.related_physdevs = related_physdevs;
 
 		if (zone.masq || zone.masq6)
 			zone.dflags.snat = true;
