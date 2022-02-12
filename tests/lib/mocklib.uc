@@ -180,6 +180,8 @@
 	if (type(MOCK_SEARCH_PATH) != 'array' || length(MOCK_SEARCH_PATH) == 0)
 		MOCK_SEARCH_PATH = [ './mocks' ];
 
+	let _print = global.print;
+
 	/* Register global mocklib namespace */
 	global.mocklib = {
 		require: function(module) {
@@ -232,7 +234,7 @@
 		if (length(args) == 1 && type(args[0]) in ["array", "object"])
 			printf("%s\n", format_json(args[0]));
 		else
-			global.print(...args);
+			_print(...args);
 	};
 
 	return global.mocklib;
