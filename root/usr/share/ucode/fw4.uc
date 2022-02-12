@@ -226,7 +226,7 @@ function null_if_empty(x) {
 }
 
 function subnets_split_af(x) {
-	let rv = [];
+	let rv = {};
 
 	for (let ag in to_array(x)) {
 		for (let a in filter(ag.addrs, a => (a.family == 4))) {
@@ -239,6 +239,9 @@ function subnets_split_af(x) {
 			push(rv[1], { ...a, invert: ag.invert });
 		}
 	}
+
+	if (rv[0] || rv[1])
+		rv.family = (!rv[0] ^ !rv[1]) ? (rv[0] ? 4 : 6) : 0;
 
 	return rv;
 }
@@ -310,7 +313,7 @@ function infer_family(f, objects) {
 			if (!obj || !obj.family || obj.family == res)
 				continue;
 
-			if (res == 0) {
+			if (!res) {
 				res = obj.family;
 				by = obj.desc;
 				continue;
@@ -1931,8 +1934,14 @@ return {
 		};
 
 		let family = infer_family(zone.family, [
-			zone.helper, "ct helper"
+			zone.helper, "ct helper",
+			match_subnets, "subnet list"
 		]);
+
+		if (type(family) == "string") {
+			this.warn_section(data, family + ", skipping");
+			return;
+		}
 
 		// group non-inverted device matches into wildcard and non-wildcard ones
 		let devices = [], plain_devices = [], plain_invert_devices = [], wildcard_invert_devices = [];
@@ -2005,6 +2014,8 @@ return {
 				}
 			}
 		}
+
+		zone.family = family;
 
 		zone.match_rules = match_rules;
 
@@ -2375,10 +2386,15 @@ return {
 				break;
 			}
 
+			sip = subnets_split_af(rule.src_ip);
+			dip = subnets_split_af(rule.dest_ip);
+
 			family = infer_family(family, [
 				ipset, "set match",
-				rule.src, "source zone",
-				rule.dest, "destination zone",
+				sip, "source IP",
+				dip, "destination IP",
+				rule.src?.zone, "source zone",
+				rule.dest?.zone, "destination zone",
 				rule.helper, "helper match",
 				rule.set_helper, "helper to set"
 			]);
@@ -2387,9 +2403,6 @@ return {
 				this.warn_section(data, family + ", skipping");
 				continue;
 			}
-
-			sip = subnets_split_af(rule.src_ip);
-			dip = subnets_split_af(rule.dest_ip);
 
 			let has_ipv4_specifics = (length(sip[0]) || length(dip[0]) || length(itypes4) || rule.dscp !== null);
 			let has_ipv6_specifics = (length(sip[1]) || length(dip[1]) || length(itypes6) || rule.dscp !== null);
@@ -2669,18 +2682,6 @@ return {
 			if (proto.name == "ipv6-icmp")
 				family = 6;
 
-			family = infer_family(family, [
-				ipset, "set match",
-				redir.src, "source zone",
-				redir.dest, "destination zone",
-				redir.helper, "helper match"
-			]);
-
-			if (type(family) == "string") {
-				this.warn_section(data, family + ", skipping");
-				continue;
-			}
-
 			switch (redir.target) {
 			case "dnat":
 				sip = subnets_split_af(redir.src_ip);
@@ -2695,98 +2696,6 @@ return {
 					rport = redir.dest_port;
 					break;
 				}
-
-				/* build reflection rules */
-				if (redir.reflection && (length(rip[0]) || length(rip[1])) && redir.src?.zone && redir.dest?.zone) {
-					let refredir = {
-						name: redir.name + " (reflection)",
-
-						helper: redir.helper,
-
-						// XXX: this likely makes no sense for reflection rules
-						//src_mac: redir.src_mac,
-
-						limit: redir.limit,
-						limit_burst: redir.limit_burst,
-
-						start_date: redir.start_date,
-						stop_date: redir.stop_date,
-						start_time: redir.start_time,
-						stop_time: redir.stop_time,
-						weekdays: redir.weekdays,
-
-						mark: redir.mark
-					};
-
-					let eaddrs = length(dip) ? dip : subnets_split_af({ addrs: map(redir.src.zone.related_subnets, to_hostaddr) });
-					let rzones = length(redir.reflection_zone) ? redir.reflection_zone : [ redir.dest ];
-
-					for (let rzone in rzones) {
-						if (!is_family(rzone, family)) {
-							this.warn_section(data,
-								sprintf("is restricted to IPv%d but referenced reflection zone is IPv%d only, skipping",
-								        family, rzone.family));
-							continue;
-						}
-
-						let iaddrs = subnets_split_af({ addrs: rzone.zone.related_subnets });
-						let refaddrs = (redir.reflection_src == "internal") ? iaddrs : eaddrs;
-
-						for (let i = 0; i <= 1; i++) {
-							if (redir.src.zone[i ? "masq6" : "masq"] && length(rip[i])) {
-								let snat_addr = refaddrs[i]?.[0];
-
-								/* For internal reflection sources try to find a suitable candiate IP
-								 * among the reflection zone subnets which is within the same subnet
-								 * as the original DNAT destination. If we can't find any matching
-								 * one then simply take the first candidate. */
-								if (redir.reflection_src == "internal") {
-									for (let zone_addr in rzone.zone.related_subnets) {
-										if (zone_addr.family != rip[i][0].family)
-											continue;
-
-										let r = apply_mask(rip[i][0].addr, zone_addr.mask);
-										let a = apply_mask(zone_addr.addr, zone_addr.mask);
-
-										if (r != a)
-											continue;
-
-										snat_addr = zone_addr;
-										break;
-									}
-								}
-
-								if (!snat_addr) {
-									this.warn_section(data, (redir.reflection_src || "external") + " rewrite IP cannot be determined, disabling reflection");
-								}
-								else if (!length(iaddrs[i])) {
-									this.warn_section(data, "internal address range cannot be determined, disabling reflection");
-								}
-								else if (!length(eaddrs[i])) {
-									this.warn_section(data, "external address range cannot be determined, disabling reflection");
-								}
-								else {
-									refredir.src = rzone;
-									refredir.dest = null;
-									refredir.target = "dnat";
-
-									for (let saddrs in subnets_group_by_masking(iaddrs[i]))
-										for (let daddrs in subnets_group_by_masking(eaddrs[i]))
-											add_rule(i ? 6 : 4, proto, saddrs, daddrs, rip[i], sport, dport, rport, null, refredir);
-
-									refredir.src = null;
-									refredir.dest = rzone;
-									refredir.target = "snat";
-
-									for (let daddrs in subnets_group_by_masking(rip[i]))
-										for (let saddrs in subnets_group_by_masking(iaddrs[i]))
-											add_rule(i ? 6 : 4, proto, saddrs, daddrs, [ to_hostaddr(snat_addr) ], null, rport, null, null, refredir);
-								}
-							}
-						}
-					}
-				}
-
 
 				break;
 
@@ -2805,6 +2714,113 @@ return {
 				}
 
 				break;
+			}
+
+			family = infer_family(family, [
+				ipset, "set match",
+				sip, "source IP",
+				dip, "destination IP",
+				rip, "rewrite IP",
+				redir.src?.zone, "source zone",
+				redir.dest?.zone, "destination zone",
+				redir.helper, "helper match"
+			]);
+
+			if (type(family) == "string") {
+				this.warn_section(data, family + ", skipping");
+				continue;
+			}
+
+			/* build reflection rules */
+			if (redir.target == "dnat" && redir.reflection &&
+			    (length(rip[0]) || length(rip[1])) && redir.src?.zone && redir.dest?.zone) {
+				let refredir = {
+					name: redir.name + " (reflection)",
+
+					helper: redir.helper,
+
+					// XXX: this likely makes no sense for reflection rules
+					//src_mac: redir.src_mac,
+
+					limit: redir.limit,
+					limit_burst: redir.limit_burst,
+
+					start_date: redir.start_date,
+					stop_date: redir.stop_date,
+					start_time: redir.start_time,
+					stop_time: redir.stop_time,
+					weekdays: redir.weekdays,
+
+					mark: redir.mark
+				};
+
+				let eaddrs = length(dip) ? dip : subnets_split_af({ addrs: map(redir.src.zone.related_subnets, to_hostaddr) });
+				let rzones = length(redir.reflection_zone) ? redir.reflection_zone : [ redir.dest ];
+
+				for (let rzone in rzones) {
+					if (!is_family(rzone, family)) {
+						this.warn_section(data,
+							sprintf("is restricted to IPv%d but referenced reflection zone is IPv%d only, skipping",
+							        family, rzone.family));
+						continue;
+					}
+
+					let iaddrs = subnets_split_af({ addrs: rzone.zone.related_subnets });
+					let refaddrs = (redir.reflection_src == "internal") ? iaddrs : eaddrs;
+
+					for (let i = 0; i <= 1; i++) {
+						if (redir.src.zone[i ? "masq6" : "masq"] && length(rip[i])) {
+							let snat_addr = refaddrs[i]?.[0];
+
+							/* For internal reflection sources try to find a suitable candiate IP
+							 * among the reflection zone subnets which is within the same subnet
+							 * as the original DNAT destination. If we can't find any matching
+							 * one then simply take the first candidate. */
+							if (redir.reflection_src == "internal") {
+								for (let zone_addr in rzone.zone.related_subnets) {
+									if (zone_addr.family != rip[i][0].family)
+										continue;
+
+									let r = apply_mask(rip[i][0].addr, zone_addr.mask);
+									let a = apply_mask(zone_addr.addr, zone_addr.mask);
+
+									if (r != a)
+										continue;
+
+									snat_addr = zone_addr;
+									break;
+								}
+							}
+
+							if (!snat_addr) {
+								this.warn_section(data, (redir.reflection_src || "external") + " rewrite IP cannot be determined, disabling reflection");
+							}
+							else if (!length(iaddrs[i])) {
+								this.warn_section(data, "internal address range cannot be determined, disabling reflection");
+							}
+							else if (!length(eaddrs[i])) {
+								this.warn_section(data, "external address range cannot be determined, disabling reflection");
+							}
+							else {
+								refredir.src = rzone;
+								refredir.dest = null;
+								refredir.target = "dnat";
+
+								for (let saddrs in subnets_group_by_masking(iaddrs[i]))
+									for (let daddrs in subnets_group_by_masking(eaddrs[i]))
+										add_rule(i ? 6 : 4, proto, saddrs, daddrs, rip[i], sport, dport, rport, null, refredir);
+
+								refredir.src = null;
+								refredir.dest = rzone;
+								refredir.target = "snat";
+
+								for (let daddrs in subnets_group_by_masking(rip[i]))
+									for (let saddrs in subnets_group_by_masking(iaddrs[i]))
+										add_rule(i ? 6 : 4, proto, saddrs, daddrs, [ to_hostaddr(snat_addr) ], null, rport, null, null, refredir);
+							}
+						}
+					}
+				}
 			}
 
 			if (length(rip[0]) > 1 || length(rip[1]) > 1)
