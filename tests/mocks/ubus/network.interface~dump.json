@@ -250,9 +250,9 @@
 			"autostart": true,
 			"dynamic": false,
 			"uptime": 35968,
-			"l3_device": "eth1",
-			"proto": "dhcp",
-			"device": "wan",
+			"l3_device": "pppoe-wan",
+			"proto": "pppoe",
+			"device": "eth1",
 			"metric": 0,
 			"dns_metric": 0,
 			"delegation": true,
@@ -309,8 +309,7 @@
 				]
 			},
 			"data": {
-				"hostname": "OpenWrt",
-				"leasetime": 43200
+
 			}
 		},
 		{
@@ -321,8 +320,8 @@
 			"autostart": true,
 			"dynamic": false,
 			"uptime": 16264,
-			"l3_device": "eth1",
-			"proto": "6in4",
+			"l3_device": "pppoe-wan",
+			"proto": "dhcpv6",
 			"updated": [
 				"addresses",
 				"routes",

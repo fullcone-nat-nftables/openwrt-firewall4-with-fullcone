@@ -77,7 +77,7 @@ table inet fw4 {
 
 	define lan_devices = { "br-lan" }
 	define lan_subnets = { 10.0.0.0/24, 192.168.26.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
-	define wan_devices = { "eth1" }
+	define wan_devices = { "pppoe-wan" }
 	define wan_subnets = { 10.11.12.0/24 }
 
 	#
@@ -98,7 +98,7 @@ table inet fw4 {
 
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
 		iifname "br-lan" jump input_lan comment "!fw4: Handle lan IPv4/IPv6 input traffic"
-		iifname "eth1" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
+		iifname "pppoe-wan" jump input_wan comment "!fw4: Handle wan IPv4/IPv6 input traffic"
 	}
 
 	chain forward {
@@ -106,7 +106,7 @@ table inet fw4 {
 
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
 		iifname "br-lan" jump forward_lan comment "!fw4: Handle lan IPv4/IPv6 forward traffic"
-		iifname "eth1" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
+		iifname "pppoe-wan" jump forward_wan comment "!fw4: Handle wan IPv4/IPv6 forward traffic"
 	}
 
 	chain output {
@@ -116,7 +116,7 @@ table inet fw4 {
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
 		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
-		oifname "eth1" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
+		oifname "pppoe-wan" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 	}
 
 	chain handle_reject {
@@ -160,15 +160,15 @@ table inet fw4 {
 	}
 
 	chain accept_to_wan {
-		oifname "eth1" counter accept comment "!fw4: accept wan IPv4/IPv6 traffic"
+		oifname "pppoe-wan" counter accept comment "!fw4: accept wan IPv4/IPv6 traffic"
 	}
 
 	chain drop_from_wan {
-		iifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+		iifname "pppoe-wan" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
 	}
 
 	chain drop_to_wan {
-		oifname "eth1" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
+		oifname "pppoe-wan" counter drop comment "!fw4: drop wan IPv4/IPv6 traffic"
 	}
 
 
