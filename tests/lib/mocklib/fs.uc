@@ -1,175 +1,174 @@
-{%
-	let mocklib = global.mocklib,
-	    fs = mocklib.require("fs");
+let mocklib = global.mocklib,
+    fs = mocklib.require("fs");
 
-	return {
-		readlink: function(path) {
-			mocklib.trace_call("fs", "readlink", { path });
+return {
+	readlink: function(path) {
+		mocklib.trace_call("fs", "readlink", { path });
 
-			return path + "-link";
-		},
+		return path + "-link";
+	},
 
-		stat: function(path) {
-			let file = sprintf("fs/stat~%s.json", replace(path, /[^A-Za-z0-9_-]+/g, '_')),
-			    mock = mocklib.read_json_file(file);
+	stat: function(path) {
+		let file = sprintf("fs/stat~%s.json", replace(path, /[^A-Za-z0-9_-]+/g, '_')),
+		    mock = mocklib.read_json_file(file);
 
-			if (!mock || mock != mock) {
-				mocklib.I("No stat result fixture defined for fs.stat() call on %s.", path);
-				mocklib.I("Provide a mock result through the following JSON file:\n%s\n", file);
+		if (!mock || mock != mock) {
+			mocklib.I("No stat result fixture defined for fs.stat() call on %s.", path);
+			mocklib.I("Provide a mock result through the following JSON file:\n%s\n", file);
 
-				if (match(path, /\/$/))
-					mock = { type: "directory" };
-				else
-					mock = { type: "file" };
-			}
+			if (match(path, /\/$/))
+				mock = { type: "directory" };
+			else
+				mock = { type: "file" };
+		}
 
-			mocklib.trace_call("fs", "stat", { path });
+		mocklib.trace_call("fs", "stat", { path });
 
-			return mock;
-		},
+		return mock;
+	},
 
-		unlink: function(path) {
-			printf("fs.unlink() path <%s>\n", path);
+	unlink: function(path) {
+		printf("fs.unlink() path <%s>\n", path);
 
-			return true;
-		},
+		return true;
+	},
 
-		popen: (cmdline, mode) => {
-			let read = (!mode || index(mode, "r") != -1),
-			    path = sprintf("fs/popen~%s.txt", replace(cmdline, /[^A-Za-z0-9_-]+/g, '_')),
-			    mock = mocklib.read_data_file(path);
+	popen: (cmdline, mode) => {
+		let read = (!mode || index(mode, "r") != -1),
+		    path = sprintf("fs/popen~%s.txt", replace(cmdline, /[^A-Za-z0-9_-]+/g, '_')),
+		    mock = mocklib.read_data_file(path);
 
-			if (read && !mock) {
-				mocklib.I("No stdout fixture defined for fs.popen() command %s.", cmdline);
-				mocklib.I("Provide a mock output through the following text file:\n%s\n", path);
+		if (read && !mock) {
+			mocklib.I("No stdout fixture defined for fs.popen() command %s.", cmdline);
+			mocklib.I("Provide a mock output through the following text file:\n%s\n", path);
 
+			return null;
+		}
+
+		mocklib.trace_call("fs", "popen", { cmdline, mode });
+
+		return {
+			read: function(amount) {
+				let rv;
+
+				switch (amount) {
+				case "all":
+					rv = mock;
+					mock = "";
+					break;
+
+				case "line":
+					let i = index(mock, "\n");
+					i = (i > -1) ? i + 1 : mock.length;
+					rv = substr(mock, 0, i);
+					mock = substr(mock, i);
+					break;
+
+				default:
+					let n = +amount;
+					n = (n > 0) ? n : 0;
+					rv = substr(mock, 0, n);
+					mock = substr(mock, n);
+					break;
+				}
+
+				return rv;
+			},
+
+			write: function() {},
+			close: function() {},
+
+			error: function() {
 				return null;
 			}
+		};
+	},
 
-			mocklib.trace_call("fs", "popen", { cmdline, mode });
+	open: (fpath, mode) => {
+		let read = (!mode || index(mode, "r") != -1 || index(mode, "+") != -1),
+		    path = sprintf("fs/open~%s.txt", replace(fpath, /[^A-Za-z0-9_-]+/g, '_')),
+		    mock = read ? mocklib.read_data_file(path) : null;
 
-			return {
-				read: function(amount) {
-					let rv;
+		if (read && !mock) {
+			mocklib.I("No stdout fixture defined for fs.open() path %s.", fpath);
+			mocklib.I("Provide a mock output through the following text file:\n%s\n", path);
 
-					switch (amount) {
-					case "all":
-						rv = mock;
-						mock = "";
-						break;
+			return null;
+		}
 
-					case "line":
-						let i = index(mock, "\n");
-						i = (i > -1) ? i + 1 : mock.length;
-						rv = substr(mock, 0, i);
-						mock = substr(mock, i);
-						break;
+		mocklib.trace_call("fs", "open", { path: fpath, mode });
 
-					default:
-						let n = +amount;
-						n = (n > 0) ? n : 0;
-						rv = substr(mock, 0, n);
-						mock = substr(mock, n);
-						break;
-					}
+		return {
+			read: function(amount) {
+				let rv;
 
-					return rv;
-				},
+				switch (amount) {
+				case "all":
+					rv = mock;
+					mock = "";
+					break;
 
-				write: function() {},
-				close: function() {},
+				case "line":
+					let i = index(mock, "\n");
+					i = (i > -1) ? i + 1 : mock.length;
+					rv = substr(mock, 0, i);
+					mock = substr(mock, i);
+					break;
 
-				error: function() {
-					return null;
+				default:
+					let n = +amount;
+					n = (n > 0) ? n : 0;
+					rv = substr(mock, 0, n);
+					mock = substr(mock, n);
+					break;
 				}
-			};
-		},
 
-		open: (fpath, mode) => {
-			let read = (!mode || index(mode, "r") != -1 || index(mode, "+") != -1),
-			    path = sprintf("fs/open~%s.txt", replace(fpath, /[^A-Za-z0-9_-]+/g, '_')),
-			    mock = read ? mocklib.read_data_file(path) : null;
+				return rv;
+			},
 
-			if (read && !mock) {
-				mocklib.I("No stdout fixture defined for fs.open() path %s.", fpath);
-				mocklib.I("Provide a mock output through the following text file:\n%s\n", path);
+			write: function() {},
+			close: function() {},
 
+			error: function() {
 				return null;
 			}
+		};
+	},
 
-			mocklib.trace_call("fs", "open", { path: fpath, mode });
+	opendir: (path) => {
+		let file = sprintf("fs/opendir~%s.json", replace(path, /[^A-Za-z0-9_-]+/g, '_')),
+		    mock = mocklib.read_json_file(file),
+		    index = 0;
 
-			return {
-				read: function(amount) {
-					let rv;
+		if (!mock || mock != mock) {
+			mocklib.I("No stat result fixture defined for fs.opendir() call on %s.", path);
+			mocklib.I("Provide a mock result through the following JSON file:\n%s\n", file);
 
-					switch (amount) {
-					case "all":
-						rv = mock;
-						mock = "";
-						break;
+			mock = [];
+		}
 
-					case "line":
-						let i = index(mock, "\n");
-						i = (i > -1) ? i + 1 : mock.length;
-						rv = substr(mock, 0, i);
-						mock = substr(mock, i);
-						break;
+		mocklib.trace_call("fs", "opendir", { path });
 
-					default:
-						let n = +amount;
-						n = (n > 0) ? n : 0;
-						rv = substr(mock, 0, n);
-						mock = substr(mock, n);
-						break;
-					}
+		return {
+			read: function() {
+				return mock[index++];
+			},
 
-					return rv;
-				},
+			tell: function() {
+				return index;
+			},
 
-				write: function() {},
-				close: function() {},
+			seek: function(i) {
+				index = i;
+			},
 
-				error: function() {
-					return null;
-				}
-			};
-		},
+			close: function() {},
 
-		opendir: (path) => {
-			let file = sprintf("fs/opendir~%s.json", replace(path, /[^A-Za-z0-9_-]+/g, '_')),
-			    mock = mocklib.read_json_file(file),
-			    index = 0;
-
-			if (!mock || mock != mock) {
-				mocklib.I("No stat result fixture defined for fs.opendir() call on %s.", path);
-				mocklib.I("Provide a mock result through the following JSON file:\n%s\n", file);
-
-				mock = [];
+			error: function() {
+				return null;
 			}
+		};
+	},
 
-			mocklib.trace_call("fs", "opendir", { path });
-
-			return {
-				read: function() {
-					return mock[index++];
-				},
-
-				tell: function() {
-					return index;
-				},
-
-				seek: function(i) {
-					index = i;
-				},
-
-				close: function() {},
-
-				error: function() {
-					return null;
-				}
-			};
-		},
-
-		error: () => "Unspecified error"
-	};
+	error: () => "Unspecified error"
+};

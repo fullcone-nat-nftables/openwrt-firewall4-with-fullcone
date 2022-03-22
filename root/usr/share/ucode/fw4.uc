@@ -1,5 +1,3 @@
-{%
-
 let fs = require("fs");
 let uci = require("uci");
 let ubus = require("ubus");

@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
 
 line='........................................'
-uenv='{
-	"REQUIRE_SEARCH_PATH": [
-		"./tests/lib/*.uc",
-		"./root/usr/share/ucode/*.uc",
-		"/usr/local/lib/ucode/*.so",
-		"/usr/lib/ucode/*.so"
-	]
-}'
+ucode='ucode -S -T, -L./tests/lib -L./root/usr/share/ucode'
 
 extract_sections() {
 	local file=$1
@@ -70,12 +63,11 @@ run_testcase() {
 	local code=$7
 	local fail=0
 
-	ucode -S ${uenv:+-e "$uenv"} -e '{
-		"MOCK_SEARCH_PATH": [
-			"'"$dir"'/files",
-			"./tests/mocks"
-		]
-	}' ${env:+-e "$(cat "$env")"} -m mocklib -m fw4 -i - <"$in" >"$dir/res.out" 2>"$dir/res.err"
+	$ucode \
+		-D MOCK_SEARCH_PATH='["'"$dir"'/files", "./tests/mocks"]' \
+		${env:+-F "$env"} \
+		-l mocklib -l fw4 \
+		- <"$in" >"$dir/res.out" 2>"$dir/res.err"
 
 	printf "%d\n" $? > "$dir/res.code"
 

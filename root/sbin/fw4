@@ -31,13 +31,13 @@ start() {
 		esac
 
 		ACTION=start \
-			ucode -S -i $MAIN | nft $VERBOSE -f /proc/self/fd/0
+			utpl -S $MAIN | nft $VERBOSE -f /proc/self/fd/0
 	} 1000>$LOCK
 }
 
 print() {
 	ACTION=print \
-		ucode -S -i $MAIN
+		utpl -S $MAIN
 }
 
 stop() {
@@ -68,12 +68,12 @@ flush() {
 
 reload_sets() {
 	ACTION=reload-sets \
-		flock -x $LOCK ucode -S -i $MAIN | nft $VERBOSE -f /proc/self/fd/0
+		flock -x $LOCK utpl -S $MAIN | nft $VERBOSE -f /proc/self/fd/0
 }
 
 lookup() {
 	ACTION=$1 OBJECT=$2 DEVICE=$3 \
-		flock -x $LOCK ucode -S -i $MAIN
+		flock -x $LOCK utpl -S $MAIN
 }
 
 while [ -n "$1" ]; do
