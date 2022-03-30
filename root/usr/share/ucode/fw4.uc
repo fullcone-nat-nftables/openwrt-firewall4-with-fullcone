@@ -888,7 +888,7 @@ return {
 			val = lc(val);
 
 			for (let i = 0; i < length(choices); i++)
-				if (substr(choices[i], 0, length(val)) == val)
+				if (lc(substr(choices[i], 0, length(val))) == val)
 					return choices[i];
 		}
 
@@ -1280,13 +1280,13 @@ return {
 
 		for (let day in to_array(rv.val)) {
 			day = this.parse_enum(day, [
-				"monday",
-				"tuesday",
-				"wednesday",
-				"thursday",
-				"friday",
-				"saturday",
-				"sunday"
+				"Monday",
+				"Tuesday",
+				"Wednesday",
+				"Thursday",
+				"Friday",
+				"Saturday",
+				"Sunday"
 			]);
 
 			if (!day)
