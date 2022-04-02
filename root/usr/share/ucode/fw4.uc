@@ -2830,8 +2830,12 @@ return {
 			if (length(rip[0]) > 1 || length(rip[1]) > 1)
 				this.warn_section(data, "specifies multiple rewrite addresses, using only first one");
 
+			let has_ip4_addr = length(sip[0]) || length(dip[0]) || length(rip[0]),
+			    has_ip6_addr = length(sip[1]) || length(dip[1]) || length(rip[1]),
+			    has_any_addr = has_ip4_addr || has_ip6_addr;
+
 			/* check if there's no AF specific bits, in this case we can do an AF agnostic rule */
-			if (!family && !length(sip[0]) && !length(sip[1]) && !length(dip[0]) && !length(dip[1]) && !length(rip[0]) && !length(rip[1])) {
+			if (!family && !has_any_addr) {
 				/* for backwards compatibility, treat unspecified family as IPv4 unless user explicitly requested any (0) */
 				if (family == null)
 					family = 4;
@@ -2841,13 +2845,13 @@ return {
 
 			/* we need to emit one or two AF specific rules */
 			else {
-				if ((!family || family == 4) && (length(sip[0]) || length(dip[0]) || length(rip[0]))) {
+				if ((!family || family == 4) && (!has_any_addr || has_ip4_addr)) {
 					for (let saddrs in subnets_group_by_masking(sip[0]))
 						for (let daddrs in subnets_group_by_masking(dip[0]))
 							add_rule(4, proto, saddrs, daddrs, rip[0], sport, dport, rport, ipset, redir);
 				}
 
-				if ((!family || family == 6) && (length(sip[1]) || length(dip[1]) || length(rip[1]))) {
+				if ((!family || family == 6) && (!has_any_addr || has_ip6_addr)) {
 					for (let saddrs in subnets_group_by_masking(sip[1]))
 						for (let daddrs in subnets_group_by_masking(dip[1]))
 							add_rule(6, proto, saddrs, daddrs, rip[1], sport, dport, rport, ipset, redir);

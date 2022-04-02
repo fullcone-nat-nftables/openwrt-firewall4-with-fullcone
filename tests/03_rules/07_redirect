@@ -97,6 +97,28 @@ Test various address selection rules in redirect rules.
 			"dest_ip": "2001:db8:1000:1::1234",
 			"dest_port": "25",
 			"target": "dnat"
+		},
+		{
+			".description": "Ensure that family restricted redirect rules work properly",
+			"name": "Redirect test #7",
+			"family": "ipv4",
+			"src": "wan",
+			"dest": "lan",
+			"proto": "tcp",
+			"src_dport": "26",
+			"dest_port": "26",
+			"target": "dnat"
+		},
+		{
+			".description": "Ensure that family restricted redirect rules work properly",
+			"name": "Redirect test #8",
+			"family": "ipv6",
+			"src": "wan",
+			"dest": "lan",
+			"proto": "tcp",
+			"src_dport": "27",
+			"dest_port": "27",
+			"target": "dnat"
 		}
 	]
 }
@@ -268,6 +290,8 @@ table inet fw4 {
 		meta nfproto ipv4 tcp dport 22 counter dnat 192.168.26.100:22 comment "!fw4: Redirect test #3"
 		meta nfproto ipv4 tcp dport 23 counter dnat 192.168.26.100:23 comment "!fw4: Redirect test #4"
 		meta nfproto ipv6 tcp dport 25 counter dnat [2001:db8:1000:1::1234]:25 comment "!fw4: Redirect test #6"
+		meta nfproto ipv4 tcp dport 26 counter redirect to 26 comment "!fw4: Redirect test #7"
+		meta nfproto ipv6 tcp dport 27 counter redirect to 27 comment "!fw4: Redirect test #8"
 	}
 
 	chain srcnat_wan {
