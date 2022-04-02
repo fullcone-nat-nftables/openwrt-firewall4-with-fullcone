@@ -1565,10 +1565,10 @@ return {
 		return sprintf("%s/%s", a.addr, a.mask);
 	},
 
-	host: function(a) {
+	host: function(a, v6brackets) {
 		return a.range
 			? sprintf("%s-%s", a.addr, a.addr2)
-			: apply_mask(a.addr, a.bits);
+			: sprintf((a.family == 6 && v6brackets) ? "[%s]" : "%s", apply_mask(a.addr, a.bits));
 	},
 
 	port: function(p) {

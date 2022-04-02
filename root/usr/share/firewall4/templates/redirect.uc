@@ -66,6 +66,6 @@
 {%- elif (redirect.target == "accept" || redirect.target == "masquerade"): -%}
 	{{ redirect.target }}
 {%- else -%}
-	{{ redirect.target }} {{ redirect.raddr ? fw4.host(redirect.raddr) : '' }}
+	{{ redirect.target }} {{ redirect.raddr ? fw4.host(redirect.raddr, redirect.rport != null) : '' }}
 	{%- if (redirect.rport): %}:{{ fw4.port(redirect.rport) }}{% endif %}
 {% endif %} comment {{ fw4.quote("!fw4: " + redirect.name, true) }}

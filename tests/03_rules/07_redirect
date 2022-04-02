@@ -85,6 +85,18 @@ Test various address selection rules in redirect rules.
 			"proto": "tcp",
 			"src_dport": "24",
 			"dest_ip": "192.168.26.100"
+		},
+		{
+			".description": "Ensure that the rewrite IPv6 address is using bracket notation when a port is specified",
+			"name": "Redirect test #6",
+			"family": "ipv6",
+			"src": "wan",
+			"dest": "lan",
+			"proto": "tcp",
+			"src_dport": "25",
+			"dest_ip": "2001:db8:1000:1::1234",
+			"dest_port": "25",
+			"target": "dnat"
 		}
 	]
 }
@@ -255,6 +267,7 @@ table inet fw4 {
 	chain dstnat_wan {
 		meta nfproto ipv4 tcp dport 22 counter dnat 192.168.26.100:22 comment "!fw4: Redirect test #3"
 		meta nfproto ipv4 tcp dport 23 counter dnat 192.168.26.100:23 comment "!fw4: Redirect test #4"
+		meta nfproto ipv6 tcp dport 25 counter dnat [2001:db8:1000:1::1234]:25 comment "!fw4: Redirect test #6"
 	}
 
 	chain srcnat_wan {
@@ -267,11 +280,13 @@ table inet fw4 {
 		udp dport 53 counter redirect to 53 comment "!fw4: Redirect test #2"
 		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 10.11.12.194 tcp dport 22 dnat 192.168.26.100:22 comment "!fw4: Redirect test #3 (reflection)"
 		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 10.11.12.194 tcp dport 23 dnat 192.168.26.100:23 comment "!fw4: Redirect test #4 (reflection)"
+		ip6 saddr { 2001:db8:1000::/60, fd63:e2f:f706::/60 } ip6 daddr 2001:db8:54:321::2 tcp dport 25 dnat [2001:db8:1000:1::1234]:25 comment "!fw4: Redirect test #6 (reflection)"
 	}
 
 	chain srcnat_lan {
 		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 192.168.26.100 tcp dport 22 snat 192.168.26.1 comment "!fw4: Redirect test #3 (reflection)"
 		ip saddr { 10.0.0.0/24, 192.168.26.0/24 } ip daddr 192.168.26.100 tcp dport 23 snat 10.11.12.194 comment "!fw4: Redirect test #4 (reflection)"
+		ip6 saddr { 2001:db8:1000::/60, fd63:e2f:f706::/60 } ip6 daddr 2001:db8:1000:1::1234 tcp dport 25 snat 2001:db8:1000:1::1 comment "!fw4: Redirect test #6 (reflection)"
 	}
 
 	chain dstnat_noaddr {
