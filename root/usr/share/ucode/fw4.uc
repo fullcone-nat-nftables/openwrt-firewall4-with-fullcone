@@ -1,3 +1,5 @@
+// /usr/share/ucode/fw4.uc
+
 const fs = require("fs");
 const uci = require("uci");
 const ubus = require("ubus");
@@ -428,6 +430,25 @@ function nft_try_hw_offload(devices) {
 	return (rc == 0);
 }
 
+function nft_try_fullcone() {
+	let nft_test =
+		'add table inet fw4-fullcone-test; ' +
+		'add chain inet fw4-fullcone-test dstnat { ' +
+			'type nat hook prerouting priority -100; policy accept; ' +
+			'fullcone; ' +
+		'}; ' +
+		'add chain inet fw4-fullcone-test srcnat { ' +
+			'type nat hook postrouting priority -100; policy accept; ' +
+			'fullcone; ' +
+		'}; ';
+	let cmd = sprintf("/usr/sbin/nft -c '%s' 2>/dev/null", replace(nft_test, "'", "'\\''"));
+	let ok = system(cmd) == 0;
+	if (!ok) {
+		warn("nft_try_fullcone: cmd "+ cmd + "\n");
+	}
+	return ok;
+}
+
 
 return {
 	read_kernel_version: function() {
@@ -765,6 +786,18 @@ return {
 			warn(`[!] ${msg}\n`);
 	},
 
+	myinfo: function(fmt, ...args) {
+		if (getenv("QUIET"))
+			return;
+
+		let msg = sprintf(fmt, ...args);
+
+		if (getenv("TTY"))
+			warn(`\033[32m${msg}\033[m\n`);
+		else
+			warn(`[I] ${msg}\n`);
+	},
+
 	get: function(sid, opt) {
 		return this.cursor.get("firewall", sid, opt);
 	},
@@ -943,6 +976,21 @@ return {
 				this.warn("ubus %s (%s) %s", s.type || "rule", s.name, msg);
 			else
 				this.warn("ubus %s %s", s.type || "rule", msg);
+		}
+	},
+
+	myinfo_section: function(s, msg) {
+		if (s[".name"]) {
+			if (s.name)
+				this.myinfo("Section %s (%s) %s", this.section_id(s[".name"]), s.name, msg);
+			else
+				this.myinfo("Section %s %s", this.section_id(s[".name"]), msg);
+		}
+		else {
+			if (s.name)
+				this.myinfo("ubus %s (%s) %s", s.type || "rule", s.name, msg);
+			else
+				this.myinfo("ubus %s %s", s.type || "rule", msg);
 		}
 	},
 
@@ -1385,6 +1433,7 @@ return {
 			"dnat",
 			"snat",
 			"masquerade",
+			"fullcone",
 			"accept",
 			"reject",
 			"drop"
@@ -1852,6 +1901,7 @@ return {
 		}
 
 		let defs = this.parse_options(data, {
+			fullcone: [ "bool", "0" ],
 			input: [ "policy", "drop" ],
 			output: [ "policy", "drop" ],
 			forward: [ "policy", "drop" ],
@@ -1884,6 +1934,11 @@ return {
 
 		delete defs.syn_flood;
 
+		if (!nft_try_fullcone()) {
+			delete defs.fullcone;
+			warn("nft_try_fullcone failed, disable fullcone globally\n");
+		}
+
 		this.state.defaults = defs;
 	},
 
@@ -1908,6 +1963,8 @@ return {
 			masq_dest: [ "network", null, PARSE_LIST ],
 
 			masq6: [ "bool" ],
+			fullcone4: [ "bool", "0" ],
+			fullcone6: [ "bool", "0" ],
 
 			extra: [ "string", null, UNSUPPORTED ],
 			extra_src: [ "string", null, UNSUPPORTED ],
@@ -1938,6 +1995,18 @@ return {
 			if (!helper.available) {
 				this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}'`);
 			}
+		}
+
+		if (this.state.defaults && !this.state.defaults.fullcone) {
+			this.warn_section(data, "fullcone in defaults not enabled, ignore zone fullcone settings");
+			zone.fullcone4 = false;
+			zone.fullcone6 = false;
+		}
+		if (zone.fullcone4) {
+			this.myinfo_section(data, "IPv4 fullcone enabled for zone '" + zone.name + "'");
+		}
+		if (zone.fullcone6) {
+			this.myinfo_section(data, "IPv6 fullcone enabled for zone '" + zone.name + "'");
 		}
 
 		if (zone.mtu_fix && this.kernel < 0x040a0000) {
@@ -2110,10 +2179,15 @@ return {
 		zone.related_subnets = related_subnets;
 		zone.related_physdevs = related_physdevs;
 
+		if (zone.fullcone4 || zone.fullcone6) {
+			zone.dflags.snat = true;
+			zone.dflags.dnat = true;
+		}
+
 		if (zone.masq || zone.masq6)
 			zone.dflags.snat = true;
 
-		if ((zone.auto_helper && !(zone.masq || zone.masq6)) || length(zone.helper)) {
+		if ((zone.auto_helper && !(zone.masq || zone.masq6 || zone.fullcone4 || zone.fullcone6)) || length(zone.helper)) {
 			zone.dflags.helper = true;
 
 			for (let helper in (length(zone.helper) ? zone.helper : this.state.helpers)) {
