@@ -1,3 +1,5 @@
+// /usr/share/ucode/fw4.uc
+
 const fs = require("fs");
 const uci = require("uci");
 const ubus = require("ubus");
@@ -426,6 +428,25 @@ function nft_try_hw_offload(devices) {
 	let rc = system(`/usr/sbin/nft -c '${replace(nft_test, "'", "'\\''")}' 2>/dev/null`);
 
 	return (rc == 0);
+}
+
+function nft_try_fullcone() {
+	let nft_test =
+		'add table inet fw4-fullcone-test; ' +
+		'add chain inet fw4-fullcone-test dstnat { ' +
+			'type nat hook prerouting priority -100; policy accept; ' +
+			'fullcone; ' +
+		'}; ' +
+		'add chain inet fw4-fullcone-test srcnat { ' +
+			'type nat hook postrouting priority -100; policy accept; ' +
+			'fullcone; ' +
+		'}; ';
+	let cmd = sprintf("/usr/sbin/nft -c '%s' 2>/dev/null", replace(nft_test, "'", "'\\''"));
+	let ok = system(cmd) == 0;
+	if (!ok) {
+		warn("nft_try_fullcone: cmd "+ cmd + "\n");
+	}
+	return ok;
 }
 
 
@@ -1377,6 +1398,7 @@ return {
 			"dnat",
 			"snat",
 			"masquerade",
+			"fullcone",
 			"accept",
 			"reject",
 			"drop"
@@ -1800,6 +1822,7 @@ return {
 		}
 
 		let defs = this.parse_options(data, {
+			fullcone: [ "bool", "0" ],
 			input: [ "policy", "drop" ],
 			output: [ "policy", "drop" ],
 			forward: [ "policy", "drop" ],
@@ -1832,6 +1855,11 @@ return {
 
 		delete defs.syn_flood;
 
+		if (!nft_try_fullcone()) {
+			delete defs.fullcone;
+			warn("nft_try_fullcone failed, disable fullcone globally\n");
+		}
+
 		this.state.defaults = defs;
 	},
 
@@ -1856,6 +1884,7 @@ return {
 			masq_dest: [ "network", null, PARSE_LIST ],
 
 			masq6: [ "bool" ],
+			fullcone: [ "bool", "0" ],
 
 			extra: [ "string", null, UNSUPPORTED ],
 			extra_src: [ "string", null, UNSUPPORTED ],
@@ -1884,6 +1913,14 @@ return {
 		else if (zone.helper && !zone.helper.available) {
 			this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}', ignoring section`);
 			return;
+		}
+
+		if (this.state.defaults && !this.state.defaults.fullcone) {
+			this.warn_section(data, "fullcone in defaults not enabled, ignore zone fullcone setting");
+			zone.fullcone = false;
+		}
+		if (zone.fullcone) {
+			this.warn_section(data, "fullcone enabled for zone '" + zone.name + "'");
 		}
 
 		if (zone.mtu_fix && this.kernel < 0x040a0000) {
@@ -2056,10 +2093,15 @@ return {
 		zone.related_subnets = related_subnets;
 		zone.related_physdevs = related_physdevs;
 
+		if (zone.fullcone) {
+			zone.dflags.snat = true;
+			zone.dflags.dnat = true;
+		}
+
 		if (zone.masq || zone.masq6)
 			zone.dflags.snat = true;
 
-		if ((zone.auto_helper && !(zone.masq || zone.masq6)) || length(zone.helper)) {
+		if ((zone.auto_helper && !(zone.masq || zone.masq6 || zone.fullcone)) || length(zone.helper)) {
 			zone.dflags.helper = true;
 
 			for (let helper in (length(zone.helper) ? zone.helper : this.state.helpers)) {
