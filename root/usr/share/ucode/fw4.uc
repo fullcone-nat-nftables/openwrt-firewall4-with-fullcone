@@ -2355,7 +2355,7 @@ return {
 				}
 				else if (need_src_action_chain(r)) {
 					r.jump_chain = sprintf("%s_from_%s", r.target, r.src.zone.name);
-					r.src.zone.dflags[r.target] = true;
+					r.src.zone.sflags[r.target] = true;
 				}
 				else if (r.target == "reject")
 					r.jump_chain = "handle_reject";
