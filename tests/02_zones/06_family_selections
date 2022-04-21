@@ -1,0 +1,300 @@
+Test that the zone family is honoured regardless of whether subnets are
+specified or not.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			".description": "Family any with IPv4 subnet should emit only IPv4 rules",
+			"name": "test1",
+			"family": "any",
+			"subnet": [ "10.0.0.0/8" ]
+		},
+
+		{
+			".description": "Family any with IPv6 subnet should emit only IPv6 rules",
+			"name": "test2",
+			"family": "any",
+			"subnet": [ "2001:db8:1234::1/64" ]
+		},
+
+		{
+			".description": "Family IPv6 with IPv6 subnet should emit only IPv6 rules",
+			"name": "test3",
+			"family": "ipv6",
+			"subnet": [ "2001:db8:1234::1/64" ]
+		},
+
+		{
+			".description": "Family IPv6 with IPv4 subnet should emit no rules",
+			"name": "test4",
+			"family": "ipv6",
+			"subnet": [ "2001:db8:1234::1/64" ]
+		},
+
+		{
+			".description": "Family IPv6 with no subnets should emit only IPv6 rules",
+			"name": "test5",
+			"family": "ipv6",
+			"device": [ "eth0" ]
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define test1_subnets = { 10.0.0.0/8 }
+	define test2_subnets = { 2001:db8:1234::/64 }
+	define test3_subnets = { 2001:db8:1234::/64 }
+	define test4_subnets = { 2001:db8:1234::/64 }
+	define test5_devices = { "eth0" }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		meta nfproto ipv4 ip saddr 10.0.0.0/8 jump input_test1 comment "!fw4: Handle test1 IPv4 input traffic"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump input_test2 comment "!fw4: Handle test2 IPv6 input traffic"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump input_test3 comment "!fw4: Handle test3 IPv6 input traffic"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump input_test4 comment "!fw4: Handle test4 IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		meta nfproto ipv4 ip saddr 10.0.0.0/8 jump forward_test1 comment "!fw4: Handle test1 IPv4 forward traffic"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump forward_test2 comment "!fw4: Handle test2 IPv6 forward traffic"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump forward_test3 comment "!fw4: Handle test3 IPv6 forward traffic"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump forward_test4 comment "!fw4: Handle test4 IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		meta nfproto ipv4 ip daddr 10.0.0.0/8 jump output_test1 comment "!fw4: Handle test1 IPv4 output traffic"
+		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 jump output_test2 comment "!fw4: Handle test2 IPv6 output traffic"
+		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 jump output_test3 comment "!fw4: Handle test3 IPv6 output traffic"
+		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 jump output_test4 comment "!fw4: Handle test4 IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test1 {
+		jump drop_from_test1
+	}
+
+	chain output_test1 {
+		jump drop_to_test1
+	}
+
+	chain forward_test1 {
+		jump drop_to_test1
+	}
+
+	chain drop_from_test1 {
+		meta nfproto ipv4 ip saddr 10.0.0.0/8 counter drop comment "!fw4: drop test1 IPv4 traffic"
+	}
+
+	chain drop_to_test1 {
+		meta nfproto ipv4 ip daddr 10.0.0.0/8 counter drop comment "!fw4: drop test1 IPv4 traffic"
+	}
+
+	chain input_test2 {
+		jump drop_from_test2
+	}
+
+	chain output_test2 {
+		jump drop_to_test2
+	}
+
+	chain forward_test2 {
+		jump drop_to_test2
+	}
+
+	chain drop_from_test2 {
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 counter drop comment "!fw4: drop test2 IPv6 traffic"
+	}
+
+	chain drop_to_test2 {
+		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 counter drop comment "!fw4: drop test2 IPv6 traffic"
+	}
+
+	chain input_test3 {
+		jump drop_from_test3
+	}
+
+	chain output_test3 {
+		jump drop_to_test3
+	}
+
+	chain forward_test3 {
+		jump drop_to_test3
+	}
+
+	chain drop_from_test3 {
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 counter drop comment "!fw4: drop test3 IPv6 traffic"
+	}
+
+	chain drop_to_test3 {
+		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 counter drop comment "!fw4: drop test3 IPv6 traffic"
+	}
+
+	chain input_test4 {
+		jump drop_from_test4
+	}
+
+	chain output_test4 {
+		jump drop_to_test4
+	}
+
+	chain forward_test4 {
+		jump drop_to_test4
+	}
+
+	chain drop_from_test4 {
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 counter drop comment "!fw4: drop test4 IPv6 traffic"
+	}
+
+	chain drop_to_test4 {
+		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 counter drop comment "!fw4: drop test4 IPv6 traffic"
+	}
+
+	chain input_test5 {
+		jump drop_from_test5
+	}
+
+	chain output_test5 {
+		jump drop_to_test5
+	}
+
+	chain forward_test5 {
+		jump drop_to_test5
+	}
+
+	chain drop_from_test5 {
+	}
+
+	chain drop_to_test5 {
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		meta nfproto ipv4 ip saddr 10.0.0.0/8 jump helper_test1 comment "!fw4: test1 IPv4 CT helper assignment"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump helper_test3 comment "!fw4: test3 IPv6 CT helper assignment"
+		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump helper_test4 comment "!fw4: test4 IPv6 CT helper assignment"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+	chain helper_test1 {
+	}
+
+	chain helper_test2 {
+	}
+
+	chain helper_test3 {
+	}
+
+	chain helper_test4 {
+	}
+
+	chain helper_test5 {
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type filter hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --
