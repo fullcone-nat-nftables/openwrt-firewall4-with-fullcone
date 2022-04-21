@@ -1432,7 +1432,7 @@ return {
 			case 'ipv4_addr':
 				ip = filter(this.parse_subnet(values[i]), a => (a.family == 4));
 
-				switch (length(ip)) {
+				switch (length(ip) ?? 0) {
 				case 0: return null;
 				case 1: break;
 				default: this.warn("Set entry '%s' resolves to multiple addresses, using first one", values[i]);
