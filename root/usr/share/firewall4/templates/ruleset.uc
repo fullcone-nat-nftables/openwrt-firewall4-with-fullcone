@@ -36,6 +36,7 @@ table inet fw4 {
 {% endif %}
 {%  if (set.interval): %}
 		flags interval
+		auto-merge
 {%  endif %}
 {%  fw4.print_setentries(set) %}
 	}
