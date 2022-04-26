@@ -21,7 +21,7 @@ Testing handling of ICMP related options.
 {
 	"rule": [
 		{
-			".description": "Proto 'icmp' maps to IPv4 and IPv6 rules",
+			".description": "Proto 'icmp' maps to a single IPv4 and IPv6 rule",
 			"proto": "icmp",
 			"name": "ICMP rule #1"
 		},
@@ -97,7 +97,7 @@ table inet fw4 {
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
-		meta l4proto icmp counter comment "!fw4: ICMP rule #1"
+		meta l4proto { "icmp", "ipv6-icmp" } counter comment "!fw4: ICMP rule #1"
 		meta nfproto ipv6 meta l4proto ipv6-icmp counter comment "!fw4: ICMP rule #2"
 		meta nfproto ipv6 meta l4proto ipv6-icmp counter comment "!fw4: ICMP rule #3"
 		meta nfproto ipv4 icmp type . icmp code { 12 . 0 } counter comment "!fw4: ICMP rule #4"

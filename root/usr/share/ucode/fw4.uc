@@ -1616,6 +1616,22 @@ return {
 		}
 	},
 
+	l4proto: function(family, proto) {
+		switch (proto.name) {
+		case 'icmp':
+			switch (family ?? 0) {
+			case 0:
+				return this.set(['icmp', 'ipv6-icmp']);
+
+			case 6:
+				return 'ipv6-icmp';
+			}
+
+		default:
+			return proto.name;
+		}
+	},
+
 	datetime: function(stamp) {
 		return sprintf('"%04d-%02d-%02d %02d:%02d:%02d"',
 		               stamp.year, stamp.month, stamp.day,
