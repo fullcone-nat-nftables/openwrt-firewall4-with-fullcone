@@ -94,4 +94,4 @@
    elif (rule.target): -%}
 	{{ rule.target }} {%+
    endif -%}
-comment {{ fw4.quote("!fw4: " + rule.name, true) }}
+comment {{ fw4.quote(`!fw4: ${rule.name}`, true) }}

@@ -134,12 +134,12 @@ table inet fw4 {
 	chain handle_reject {
 		meta l4proto tcp reject with {{
 			(fw4.default_option("tcp_reject_code") != "tcp-reset")
-				? "icmpx type " + fw4.default_option("tcp_reject_code")
+				? `icmpx type ${fw4.default_option("tcp_reject_code")}`
 				: "tcp reset"
 		}} comment "!fw4: Reject TCP traffic"
 		reject with {{
 			(fw4.default_option("any_reject_code") != "tcp-reset")
-				? "icmpx type " + fw4.default_option("any_reject_code")
+				? `icmpx type ${fw4.default_option("any_reject_code")}`
 				: "tcp reset"
 		}} comment "!fw4: Reject any other traffic"
 	}
@@ -157,7 +157,7 @@ table inet fw4 {
 {% endif %}
 {% for (let zone in fw4.zones()): %}
 	chain input_{{ zone.name }} {
-{%  for (let rule in fw4.rules("input_"+zone.name)): %}
+{%  for (let rule in fw4.rules(`input_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 {%  if (zone.dflags.dnat): %}
@@ -167,14 +167,14 @@ table inet fw4 {
 	}
 
 	chain output_{{ zone.name }} {
-{%  for (let rule in fw4.rules("output_"+zone.name)): %}
+{%  for (let rule in fw4.rules(`output_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 		jump {{ zone.output }}_to_{{ zone.name }}
 	}
 
 	chain forward_{{ zone.name }} {
-{%  for (let rule in fw4.rules("forward_"+zone.name)): %}
+{%  for (let rule in fw4.rules(`forward_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 {%  if (zone.dflags.dnat): %}
@@ -235,7 +235,7 @@ table inet fw4 {
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.dnat): %}
 	chain dstnat_{{ zone.name }} {
-{%   for (let redirect in fw4.redirects("dstnat_"+zone.name)): %}
+{%   for (let redirect in fw4.redirects(`dstnat_${zone.name}`)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {%   endfor %}
 	}
@@ -243,7 +243,7 @@ table inet fw4 {
 {%  endif %}
 {%  if (zone.dflags.snat): %}
 	chain srcnat_{{ zone.name }} {
-{%   for (let redirect in fw4.redirects("srcnat_"+zone.name)): %}
+{%   for (let redirect in fw4.redirects(`srcnat_${zone.name}`)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {%   endfor %}
 {%   if (zone.masq): %}
@@ -327,7 +327,7 @@ table inet fw4 {
 {%  for (let zone in fw4.zones()): %}
 {%   if (zone.dflags[target]): %}
 	chain {{ target }}_{{ zone.name }} {
-{% for (let rule in fw4.rules(target+"_"+zone.name)): %}
+{% for (let rule in fw4.rules(`${target}_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
 	}

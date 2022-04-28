@@ -22,27 +22,25 @@ function reload_sets() {
 			continue;
 
 		if (!exists(sets, set.name)) {
-			warn(sprintf("Named set '%s' does not exist - do you need to restart the firewall?\n",
-			             set.name));
+			warn(`Named set '${set.name}' does not exist - do you need to restart the firewall?\n`);
 			continue;
 		}
 		else if (fw4.concat(sets[set.name]) != fw4.concat(set.types)) {
-			warn(sprintf("Named set '%s' has a different type - want '%s' but is '%s' - do you need to restart the firewall?\n",
-			             set.name, fw4.concat(set.types), fw4.concat(sets[set.name])));
+			warn(`Named set '${set.name}' has a different type - want '${fw4.concat(set.types)}' but is '${fw4.concat(sets[set.name])}' - do you need to restart the firewall?\n`);
 			continue;
 		}
 
 		let first = true;
 		let printer = (entry) => {
 			if (first) {
-				print("add element inet fw4 ", set.name, " {\n");
+				print(`add element inet fw4 ${set.name} {\n`);
 				first = false;
 			}
 
-			print("\t", join(" . ", entry), ",\n");
+			print(`	${join(" . ", entry)},\n`);
 		};
 
-		print("flush set inet fw4 ", set.name, "\n");
+		print(`flush set inet fw4 ${set.name}\n`);
 
 		map(set.entries, printer);
 		fw4.parse_setfile(set, printer);
