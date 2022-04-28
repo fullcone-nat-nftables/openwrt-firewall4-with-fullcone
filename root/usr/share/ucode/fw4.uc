@@ -2881,7 +2881,7 @@ return {
 			enabled: [ "bool", "1" ],
 
 			name: [ "string", this.section_id(data[".name"]) ],
-			family: [ "family", "4" ],
+			family: [ "family" ],
 
 			src: [ "zone_ref" ],
 			device: [ "string" ],
@@ -2956,9 +2956,6 @@ return {
 			return;
 		}
 
-		if (snat.src && snat.src.zone)
-			snat.src.zone.dflags.snat = true;
-
 		let add_rule = (family, proto, saddrs, daddrs, raddrs, sport, dport, rport, snat) => {
 			let n = {
 				...snat,
@@ -3008,18 +3005,20 @@ return {
 			if (length(rip[0]) > 1 || length(rip[1]) > 1)
 				this.warn_section(data, "specifies multiple rewrite addresses, using only first one");
 
-			/* inherit family restrictions from related zones */
-			if (family === 0 || family === null) {
-				let f = (rule.src && rule.src.zone) ? rule.src.zone.family : 0;
+			family = infer_family(family, [
+				sip, "source IP",
+				dip, "destination IP",
+				rip, "rewrite IP",
+				snat.src?.zone, "source zone"
+			]);
 
-				if (f) {
-					this.warn_section(r,
-						sprintf("inheriting %s restriction from src %s",
-						        this.nfproto(f1, true), rule.src.zone.name));
-
-					family = f;
-				}
+			if (type(family) == "string") {
+				this.warn_section(data, family + ", skipping");
+				continue;
 			}
+
+			if (snat.src?.zone)
+				snat.src.zone.dflags.snat = true;
 
 			/* if no family was configured, infer target family from IP addresses */
 			if (family === null) {
@@ -3028,7 +3027,7 @@ return {
 				else if ((length(sip[1]) || length(dip[1]) || length(rip[1])) && !length(sip[0]) && !length(dip[0]) && !length(rip[0]))
 					family = 6;
 				else
-					family = 0;
+					family = 4; /* default to IPv4 only for backwards compatibility, unless an explict family any was configured */
 			}
 
 			/* check if there's no AF specific bits, in this case we can do an AF agnostic rule */

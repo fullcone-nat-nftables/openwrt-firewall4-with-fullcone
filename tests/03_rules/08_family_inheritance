@@ -88,7 +88,7 @@ Testing various option constraints.
 	],
 	"redirect": [
 		{
-			".description": "Redirects rhose family conflicts with the referenced zone family should be skipped",
+			".description": "Redirects whose family conflicts with the referenced zone family should be skipped",
 			"src": "ipv4only",
 			"proto": "tcp",
 			"src_dport": "22",
@@ -96,6 +96,55 @@ Testing various option constraints.
 			"name": "Redirect #1",
 			"target": "dnat"
 		},
+	],
+	"nat": [
+		{
+			".description": "NAT rules whose family conflicts with the referenced zone family should be skipped",
+			"name": "NAT #1",
+			"family": "ipv6",
+			"src": "ipv4only",
+			"target": "masquerade"
+		},
+
+		{
+			".description": "NAT rules whose family conflicts with their addresses should be skipped",
+			"name": "NAT #2",
+			"family": "ipv4",
+			"src": "*",
+			"src_ip": "fc00::/7",
+			"target": "masquerade"
+		},
+
+		{
+			".description": "NAT rules without any AF specific bits and unspecified family should default to IPv4 for backwards compatibility",
+			"name": "NAT #3",
+			"src": "*",
+			"target": "masquerade"
+		},
+
+		{
+			".description": "NAT rules without explicit family but IPv6 specific bits should be IPv6",
+			"name": "NAT #4",
+			"src": "*",
+			"src_ip": "fc00::/7",
+			"target": "masquerade"
+		},
+
+
+		{
+			".description": "NAT rules with explicit family any should inherit zone restrictions",
+			"name": "NAT #5",
+			"src": "ipv4only",
+			"target": "masquerade"
+		},
+
+		{
+			".description": "NAT rules without any AF specific bits but explicit family any should be IPv4/IPv6",
+			"name": "NAT #6",
+			"family": "any",
+			"src": "*",
+			"target": "masquerade"
+		}
 	]
 }
 -- End --
@@ -106,6 +155,8 @@ Testing various option constraints.
 [!] Section @rule[2] (Rule #3) is restricted to IPv6 but referenced source zone is IPv4 only, skipping
 [!] Section @rule[3] (Rule #4) is restricted to IPv6 but referenced set match is IPv4 only, skipping
 [!] Section @redirect[0] (Redirect #1) is restricted to IPv6 but referenced source zone is IPv4 only, skipping
+[!] Section @nat[0] (NAT #1) is restricted to IPv6 but referenced source zone is IPv4 only, skipping
+[!] Section @nat[1] (NAT #2) is restricted to IPv4 but referenced source IP is IPv6 only, skipping
 -- End --
 
 -- Expect stdout --
@@ -209,9 +260,17 @@ table inet fw4 {
 
 	chain srcnat {
 		type nat hook postrouting priority srcnat; policy accept;
+		meta nfproto ipv4 masquerade comment "!fw4: NAT #3"
+		ip6 saddr fc00::/7 masquerade comment "!fw4: NAT #4"
+		masquerade comment "!fw4: NAT #6"
+		meta nfproto ipv4 ip daddr 192.168.1.0/24 jump srcnat_ipv4only comment "!fw4: Handle ipv4only IPv4 srcnat traffic"
 	}
 
 	chain dstnat_ipv4only {
+	}
+
+	chain srcnat_ipv4only {
+		meta nfproto ipv4 masquerade comment "!fw4: NAT #5"
 	}
 
 
