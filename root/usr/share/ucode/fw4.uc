@@ -2099,7 +2099,7 @@ return {
 				proto: { any: true }
 			};
 
-			f.name ||= `Accept ${fwd.src.any ? "any" : fwd.src.zone.name} to ${fwd.dest.any ? "any" : fwd.dest.zone.name} forwarding`;
+			f.name ||= `Accept ${fwd.src.any ? "any" : fwd.src.zone.name} to ${fwd.dest.any ? "any" : fwd.dest.zone.name} ${family ? `${this.nfproto(family, true)} ` : ''}forwarding`;
 			f.chain = fwd.src.any ? "forward" : `forward_${fwd.src.zone.name}`;
 
 			if (fwd.dest.any)
@@ -2111,31 +2111,15 @@ return {
 		};
 
 
-		let family = fwd.family;
-
 		/* inherit family restrictions from related zones */
-		if (family === 0 || family === null) {
-			let f1 = fwd.src.zone ? fwd.src.zone.family : 0;
-			let f2 = fwd.dest.zone ? fwd.dest.zone.family : 0;
+		let family = infer_family(fwd.family, [
+			fwd.src?.zone, "source zone",
+			fwd.dest?.zone, "destination zone"
+		]);
 
-			if (f1 && f2 && f1 != f2) {
-				this.warn_section(data,
-					`references src ${fwd.src.zone.name} restricted to ${this.nfproto(f1, true)} and dest ${fwd.dest.zone.name} restricted to ${this.nfproto(f2, true)}, ignoring forwarding`);
-
-				return;
-			}
-			else if (f1) {
-				this.warn_section(data,
-					`inheriting ${this.nfproto(f1, true)} restriction from src ${fwd.src.zone.name}`);
-
-				family = f1;
-			}
-			else if (f2) {
-				this.warn_section(data,
-					`inheriting ${this.nfproto(f2, true)} restriction from dest ${fwd.dest.zone.name}`);
-
-				family = f2;
-			}
+		if (type(family) == "string") {
+			this.warn_section(data, `${family}, skipping`);
+			return;
 		}
 
 		add_rule(family, fwd);
