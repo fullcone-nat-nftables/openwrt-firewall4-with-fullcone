@@ -25,35 +25,40 @@ specified or not.
 			".description": "Family any with IPv4 subnet should emit only IPv4 rules",
 			"name": "test1",
 			"family": "any",
-			"subnet": [ "10.0.0.0/8" ]
+			"subnet": [ "10.0.0.0/8" ],
+			"auto_helper": 0
 		},
 
 		{
 			".description": "Family any with IPv6 subnet should emit only IPv6 rules",
 			"name": "test2",
 			"family": "any",
-			"subnet": [ "2001:db8:1234::1/64" ]
+			"subnet": [ "2001:db8:1234::1/64" ],
+			"auto_helper": 0
 		},
 
 		{
 			".description": "Family IPv6 with IPv6 subnet should emit only IPv6 rules",
 			"name": "test3",
 			"family": "ipv6",
-			"subnet": [ "2001:db8:1234::1/64" ]
+			"subnet": [ "2001:db8:1234::1/64" ],
+			"auto_helper": 0
 		},
 
 		{
 			".description": "Family IPv6 with IPv4 subnet should emit no rules",
 			"name": "test4",
 			"family": "ipv6",
-			"subnet": [ "2001:db8:1234::1/64" ]
+			"subnet": [ "2001:db8:1234::1/64" ],
+			"auto_helper": 0
 		},
 
 		{
 			".description": "Family IPv6 with no subnets should emit only IPv6 rules",
 			"name": "test5",
 			"family": "ipv6",
-			"device": [ "eth0" ]
+			"device": [ "eth0" ],
+			"auto_helper": 0
 		}
 	]
 }
@@ -100,6 +105,7 @@ table inet fw4 {
 		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump input_test2 comment "!fw4: Handle test2 IPv6 input traffic"
 		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump input_test3 comment "!fw4: Handle test3 IPv6 input traffic"
 		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump input_test4 comment "!fw4: Handle test4 IPv6 input traffic"
+		meta nfproto ipv6 iifname "eth0" jump input_test5 comment "!fw4: Handle test5 IPv6 input traffic"
 	}
 
 	chain forward {
@@ -110,6 +116,7 @@ table inet fw4 {
 		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump forward_test2 comment "!fw4: Handle test2 IPv6 forward traffic"
 		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump forward_test3 comment "!fw4: Handle test3 IPv6 forward traffic"
 		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump forward_test4 comment "!fw4: Handle test4 IPv6 forward traffic"
+		meta nfproto ipv6 iifname "eth0" jump forward_test5 comment "!fw4: Handle test5 IPv6 forward traffic"
 	}
 
 	chain output {
@@ -122,6 +129,7 @@ table inet fw4 {
 		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 jump output_test2 comment "!fw4: Handle test2 IPv6 output traffic"
 		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 jump output_test3 comment "!fw4: Handle test3 IPv6 output traffic"
 		meta nfproto ipv6 ip6 daddr 2001:db8:1234::/64 jump output_test4 comment "!fw4: Handle test4 IPv6 output traffic"
+		meta nfproto ipv6 oifname "eth0" jump output_test5 comment "!fw4: Handle test5 IPv6 output traffic"
 	}
 
 	chain handle_reject {
@@ -222,9 +230,11 @@ table inet fw4 {
 	}
 
 	chain drop_from_test5 {
+		meta nfproto ipv6 iifname "eth0" counter drop comment "!fw4: drop test5 IPv6 traffic"
 	}
 
 	chain drop_to_test5 {
+		meta nfproto ipv6 oifname "eth0" counter drop comment "!fw4: drop test5 IPv6 traffic"
 	}
 
 
@@ -247,29 +257,10 @@ table inet fw4 {
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		meta nfproto ipv4 ip saddr 10.0.0.0/8 jump helper_test1 comment "!fw4: test1 IPv4 CT helper assignment"
-		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
-		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump helper_test3 comment "!fw4: test3 IPv6 CT helper assignment"
-		meta nfproto ipv6 ip6 saddr 2001:db8:1234::/64 jump helper_test4 comment "!fw4: test4 IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-	}
-
-	chain helper_test1 {
-	}
-
-	chain helper_test2 {
-	}
-
-	chain helper_test3 {
-	}
-
-	chain helper_test4 {
-	}
-
-	chain helper_test5 {
 	}
 
 

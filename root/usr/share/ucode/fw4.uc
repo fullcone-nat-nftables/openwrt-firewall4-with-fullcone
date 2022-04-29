@@ -2023,11 +2023,11 @@ return {
 
 				// we need to emit one or two AF specific rules
 				else {
-					if (family_is_ipv4(zone) && length(match_subnets[0]))
+					if (!family || family == 4)
 						for (let subnets in subnets_group_by_masking(match_subnets[0]))
 							add_rule(4, devgroup, subnets, zone);
 
-					if (family_is_ipv6(zone) && length(match_subnets[1]))
+					if (!family || family == 6)
 						for (let subnets in subnets_group_by_masking(match_subnets[1]))
 							add_rule(6, devgroup, subnets, zone);
 				}
