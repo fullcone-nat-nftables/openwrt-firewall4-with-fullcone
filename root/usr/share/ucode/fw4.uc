@@ -356,26 +356,53 @@ function map_setmatch(set, match, proto) {
 	return fields;
 }
 
-function resolve_lower_devices(devstatus, devname) {
-	let dir = fs.opendir(`/sys/class/net/${devname}`);
-	let devs = [];
+function determine_device_type(devname) {
+	let uevent = fs.open(`/sys/class/net/${devname}/uevent`),
+	    devtype = null;
 
-	if (dir) {
-		if (!devstatus || devstatus[devname]?.["hw-tc-offload"]) {
-			push(devs, devname);
+	if (uevent) {
+		let line;
+
+		while ((line = uevent.read('line')) != null) {
+			let m = match(line, /^DEVTYPE=(\w+)/);
+
+			if (m) {
+				devtype = m[1];
+				break;
+			}
 		}
-		else {
+
+		uevent.close();
+	}
+
+	return devtype;
+}
+
+function resolve_lower_devices(devname) {
+	switch (determine_device_type(devname)) {
+	case null:
+		return [];
+
+	case 'vlan':
+	case 'bridge':
+		let dir = fs.opendir(`/sys/class/net/${devname}`);
+		let lower = [];
+
+		if (dir) {
 			let e;
 
 			while ((e = dir.read()) != null)
 				if (index(e, "lower_") === 0)
-					push(devs, ...resolve_lower_devices(devstatus, substr(e, 6)));
+					push(lower, ...resolve_lower_devices(substr(e, 6)));
+
+			dir.close();
 		}
 
-		dir.close();
-	}
+		return lower;
 
-	return devs;
+	default:
+		return [ devname ];
+	}
 }
 
 function nft_json_command(...args) {
@@ -433,40 +460,24 @@ return {
 	},
 
 	resolve_offload_devices: function() {
-		if (!this.default_option("flow_offloading"))
-			return [];
-
-		let devstatus = null;
 		let devices = [];
 
-		if (this.default_option("flow_offloading_hw")) {
-			let bus = ubus.connect();
-
-			if (bus) {
-				devstatus = bus.call("network.device", "status") || {};
-				bus.disconnect();
-			}
-
+		if (this.default_option("flow_offloading")) {
 			for (let zone in this.zones())
 				for (let device in zone.related_physdevs)
-					push(devices, ...resolve_lower_devices(devstatus, device));
+					push(devices, ...resolve_lower_devices(device));
 
-			devices = uniq(devices);
+			if (length(devices)) {
+				devices = sort(uniq(devices));
 
-			if (nft_try_hw_offload(devices))
-				return devices;
-
-			this.warn('Hardware flow offloading unavailable, falling back to software offloading');
-			this.state.defaults.flow_offloading_hw = false;
-
-			devices = [];
+				if (this.default_option("flow_offloading_hw") && !nft_try_hw_offload(devices)) {
+					this.warn('Hardware flow offloading unavailable, falling back to software offloading');
+					this.state.defaults.flow_offloading_hw = false;
+				}
+			}
 		}
 
-		for (let zone in this.zones())
-			for (let device in zone.match_devices)
-				push(devices, ...resolve_lower_devices(null, device));
-
-		return uniq(devices);
+		return devices;
 	},
 
 	check_set_types: function() {
