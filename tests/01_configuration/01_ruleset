@@ -296,10 +296,10 @@ table inet fw4 {
 [!] Section @defaults[0] specifies unknown option 'unknown_defaults_option'
 [!] Section @rule[9] (Test-Deprecated-Rule-Option) option '_name' is deprecated by fw4
 [!] Section @rule[9] (Test-Deprecated-Rule-Option) specifies unknown option 'unknown_rule_option'
-[call] fs.open path </sys/class/net/br-lan/uevent> mode <null>
+[call] ctx.call object <network.device> method <status> args <null>
 [call] fs.opendir path </sys/class/net/br-lan>
-[call] fs.open path </sys/class/net/eth0/uevent> mode <null>
-[call] fs.open path </sys/class/net/eth1/uevent> mode <null>
+[call] fs.opendir path </sys/class/net/eth0>
+[call] fs.opendir path </sys/class/net/eth1>
 [call] system command </usr/sbin/nft -c '
 		add table inet fw4-hw-offload-test;
 		add flowtable inet fw4-hw-offload-test ft {
