@@ -110,9 +110,9 @@ return {
 
 				case "line":
 					let i = index(mock, "\n");
-					i = (i > -1) ? i + 1 : mock.length;
+					i = (i > -1) ? i + 1 : length(mock);
 					rv = substr(mock, 0, i);
-					mock = substr(mock, i);
+					mock = length(mock) ? substr(mock, i) : null;
 					break;
 
 				default:
