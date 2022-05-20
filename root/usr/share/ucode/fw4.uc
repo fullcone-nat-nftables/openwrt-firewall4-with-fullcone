@@ -131,14 +131,19 @@ const dscp_classes = {
 };
 
 function to_mask(bits, v6) {
-	let m = [];
+	let m = [], n = false;
 
-	if (bits < 0 || bits > (v6 ? 128 : 32))
+	if (bits < 0) {
+		n = true;
+		bits = -bits;
+	}
+
+	if (bits > (v6 ? 128 : 32))
 		return null;
 
 	for (let i = 0; i < (v6 ? 16 : 4); i++) {
 		let b = (bits < 8) ? bits : 8;
-		m[i] = (0xff << (8 - b)) & 0xff;
+		m[i] = (n ? ~(0xff << (8 - b)) : (0xff << (8 - b))) & 0xff;
 		bits -= b;
 	}
 
