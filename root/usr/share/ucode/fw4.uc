@@ -1902,7 +1902,9 @@ return {
 				push(related_ubus_networks, { invert: false, device: name });
 		}
 
-		for (let e in [ ...to_array(zone.network), ...related_ubus_networks ]) {
+		zone.network = [ ...to_array(zone.network), ...related_ubus_networks ];
+
+		for (let e in zone.network) {
 			if (exists(this.state.networks, e.device)) {
 				let net = this.state.networks[e.device];
 
