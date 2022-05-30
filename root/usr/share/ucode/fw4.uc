@@ -462,17 +462,15 @@ return {
 				for (let device in zone.related_physdevs)
 					push(devices, ...resolve_lower_devices(devstatus, device, true));
 
-			if (length(devices)) {
-				devices = sort(uniq(devices));
+			devices = sort(uniq(devices));
 
-				if (nft_try_hw_offload(devices))
-					return devices;
+			if (length(devices) && nft_try_hw_offload(devices))
+				return devices;
 
-				this.warn('Hardware flow offloading unavailable, falling back to software offloading');
-				this.state.defaults.flow_offloading_hw = false;
+			this.warn('Hardware flow offloading unavailable, falling back to software offloading');
+			this.state.defaults.flow_offloading_hw = false;
 
-				devices = [];
-			}
+			devices = [];
 		}
 
 		for (let zone in this.zones())
