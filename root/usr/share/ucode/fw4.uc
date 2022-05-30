@@ -1238,26 +1238,21 @@ return {
 	},
 
 	parse_date: function(val) {
-		let m = match(val, /^([0-9-]+)T([0-9:]+)$/);
-		let d = m ? match(m[1], /^([0-9]{1,4})(-([0-9]{1,2})(-([0-9]{1,2}))?)?$/) : null;
-		let t = this.parse_time(m[2]);
+		let d = match(val, /^([0-9]{4})(-([0-9]{1,2})(-([0-9]{1,2})(T([0-9:]+))?)?)?$/);
 
-		d[3] ||= 1;
-		d[5] ||= 1;
-
-		if (d == null || d[1] < 1970 || d[1] > 2038 || d[3] < 1 || d[3] > 12 || d[5] < 1 || d[5] > 31)
+		if (d == null || d[1] < 1970 || d[1] > 2038 || d[3] > 12 || d[5] > 31)
 			return null;
 
-		if (m[2] && !t)
+		let t = this.parse_time(d[7] ?? "0");
+
+		if (t == null)
 			return null;
 
 		return {
 			year:  +d[1],
-			month: +d[3],
-			day:   +d[5],
-			hour:  t ? +t[1] : 0,
-			min:   t ? +t[3] : 0,
-			sec:   t ? +t[5] : 0
+			month: +d[3] || 1,
+			day:   +d[5] || 1,
+			...t
 		};
 	},
 
@@ -1641,6 +1636,10 @@ return {
 
 	date: function(stamp) {
 		return sprintf('"%04d-%02d-%02d"', stamp.year, stamp.month, stamp.day);
+	},
+
+	datestamp: function(stamp) {
+		return exists(stamp, 'hour') ? this.datetime(stamp) : this.date(stamp);
 	},
 
 	time: function(stamp) {
