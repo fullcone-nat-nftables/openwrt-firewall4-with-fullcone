@@ -362,7 +362,7 @@ table inet fw4 {
 	}
 
 	chain mangle_output {
-		type filter hook output priority mangle; policy accept;
+		type route hook output priority mangle; policy accept;
 {% for (let rule in fw4.rules("mangle_output")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}

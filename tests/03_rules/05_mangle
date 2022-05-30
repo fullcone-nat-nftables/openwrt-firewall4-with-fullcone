@@ -327,7 +327,7 @@ table inet fw4 {
 	}
 
 	chain mangle_output {
-		type filter hook output priority mangle; policy accept;
+		type route hook output priority mangle; policy accept;
 		meta nfproto ipv4 meta l4proto tcp counter ip dscp set 0x1 comment "!fw4: Mangle rule #7"
 		meta nfproto ipv6 meta l4proto tcp counter ip6 dscp set 0x1 comment "!fw4: Mangle rule #7"
 		meta nfproto ipv4 meta l4proto udp counter ip dscp set 0x1 comment "!fw4: Mangle rule #7"
