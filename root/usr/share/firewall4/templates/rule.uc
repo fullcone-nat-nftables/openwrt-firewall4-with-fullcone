@@ -41,18 +41,20 @@
 {%+ if (rule.limit): -%}
 	limit rate {{ rule.limit.rate }}/{{ rule.limit.unit }}
 	{%- if (rule.limit_burst): %} burst {{ rule.limit_burst }} packets{% endif %} {%+ endif -%}
-{%+ if (rule.start_date): -%}
-	meta time >= {{
-		exists(rule.start_date, "hour") ? fw4.datetime(rule.start_date) : fw4.date(rule.start_date)
-	}} {%+ endif -%}
-{%+ if (rule.stop_date): -%}
-	meta time <= {{
-		exists(rule.stop_date, "hour") ? fw4.datetime(rule.stop_date) : fw4.date(rule.stop_date)
-	}} {%+ endif -%}
-{%+ if (rule.start_time): -%}
-	meta hour >= {{ fw4.time(rule.start_time) }} {%+ endif -%}
-{%+ if (rule.stop_time): -%}
-	meta hour <= {{ fw4.time(rule.stop_time) }} {%+ endif -%}
+{%+ if (rule.start_date && rule.stop_date): -%}
+	meta time {{ fw4.datestamp(rule.start_date) }}-{{ fw4.datestamp(rule.stop_date) }} {%+
+   elif (rule.start_date): -%}
+	meta time >= {{ fw4.datestamp(rule.start_date) }} {%+
+   elif (rule.stop_date): -%}
+	meta time <= {{ fw4.datestamp(rule.stop_date) }} {%+
+   endif -%}
+{%+ if (rule.start_time && rule.stop_time): -%}
+	meta hour {{ fw4.time(rule.start_time) }}-{{ fw4.time(rule.stop_time) }} {%+
+   elif (rule.start_time): -%}
+	meta hour >= {{ fw4.time(rule.start_time) }} {%+
+   elif (rule.stop_time): -%}
+	meta hour <= {{ fw4.time(rule.stop_time) }} {%+
+   endif -%}
 {%+ if (rule.weekdays): -%}
 	meta day{% if (rule.weekdays.invert): %} !={% endif %} {{ fw4.set(rule.weekdays.days) }} {%+ endif -%}
 {%+ if (rule.mark && rule.mark.mask < 0xFFFFFFFF): -%}

@@ -35,18 +35,20 @@
 {%+ if (redirect.limit): -%}
 	limit rate {{ redirect.limit.rate }}/{{ redirect.limit.unit }}
 	{%- if (redirect.limit_burst): %} burst {{ redirect.limit_burst }} packets{% endif %} {%+ endif -%}
-{%+ if (redirect.start_date): -%}
-	meta time >= {{
-		exists(redirect.start_date, "hour") ? fw4.datetime(redirect.start_date) : fw4.date(redirect.start_date)
-	}} {%+ endif -%}
-{%+ if (redirect.stop_date): -%}
-	meta time <= {{
-		exists(redirect.stop_date, "hour") ? fw4.datetime(redirect.stop_date) : fw4.date(redirect.stop_date)
-	}} {%+ endif -%}
-{%+ if (redirect.start_time): -%}
-	meta hour >= {{ fw4.time(redirect.start_time) }} {%+ endif -%}
-{%+ if (redirect.stop_time): -%}
-	meta hour <= {{ fw4.time(redirect.stop_time) }} {%+ endif -%}
+{%+ if (redirect.start_date && redirect.stop_date): -%}
+	meta time {{ fw4.datestamp(redirect.start_date) }}-{{ fw4.datestamp(redirect.stop_date) }} {%+
+   elif (redirect.start_date): -%}
+	meta time >= {{ fw4.datestamp(redirect.start_date) }} {%+
+   elif (redirect.stop_date): -%}
+	meta time <= {{ fw4.datestamp(redirect.stop_date) }} {%+
+   endif -%}
+{%+ if (redirect.start_time && redirect.stop_time): -%}
+	meta hour {{ fw4.time(redirect.start_time) }}-{{ fw4.time(redirect.stop_time) }} {%+
+   elif (redirect.start_time): -%}
+	meta hour >= {{ fw4.time(redirect.start_time) }} {%+
+   elif (redirect.stop_time): -%}
+	meta hour <= {{ fw4.time(redirect.stop_time) }} {%+
+   endif -%}
 {%+ if (redirect.weekdays): -%}
 	meta day{% if (redirect.weekdays.invert): %} !={% endif %} {{ fw4.set(redirect.weekdays.days) }} {%+ endif -%}
 {%+ if (redirect.mark && redirect.mark.mask < 0xFFFFFFFF): -%}

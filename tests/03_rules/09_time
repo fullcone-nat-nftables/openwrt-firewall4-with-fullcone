@@ -1,0 +1,232 @@
+Ensure that time constraints are properly rendered.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File uci/firewall.json --
+{
+	"rule": [
+		{
+			".description": "Check parsing a complete ISO datetime stamp",
+			"name": "Time rule #1",
+			"proto": "all",
+			"start_date": "2022-05-30T21:51:23",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a datetime stamp without seconds",
+			"name": "Time rule #2",
+			"proto": "all",
+			"start_date": "2022-05-30T21:51",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a datetime stamp without minutes and seconds",
+			"name": "Time rule #3",
+			"proto": "all",
+			"start_date": "2022-05-30T21",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a datetime stamp without time",
+			"name": "Time rule #4",
+			"proto": "all",
+			"start_date": "2022-05-30",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a datetime stamp without day and time",
+			"name": "Time rule #5",
+			"proto": "all",
+			"start_date": "2022-05",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a datetime stamp without month, day and time",
+			"name": "Time rule #6",
+			"proto": "all",
+			"start_date": "2022",
+			"target": "ACCEPT"
+		},
+
+		{
+			".description": "Check parsing a complete timestamp",
+			"name": "Time rule #7",
+			"proto": "all",
+			"start_time": "21:51:23",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a timestamp without seconds",
+			"name": "Time rule #8",
+			"proto": "all",
+			"start_time": "21:51",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check parsing a timestamp without minutes and seconds",
+			"name": "Time rule #9",
+			"proto": "all",
+			"start_time": "21",
+			"target": "ACCEPT"
+		},
+
+		{
+			".description": "Check emitting datetime ranges",
+			"name": "Time rule #10",
+			"proto": "all",
+			"start_date": "2022-05-30T21:51:23",
+			"stop_date": "2022-06-01T23:51:23",
+			"target": "ACCEPT"
+		},
+		{
+			".description": "Check emitting time ranges",
+			"name": "Time rule #11",
+			"proto": "all",
+			"start_time": "21:51:23",
+			"stop_time": "23:51:23",
+			"target": "ACCEPT"
+		},
+
+		{
+			".description": "Check parsing weekdays",
+			"name": "Time rule #12",
+			"proto": "all",
+			"weekdays": "Monday tuEsday wed SUN Th",
+			"target": "ACCEPT"
+		},
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		meta time >= "2022-05-30 21:51:23" counter accept comment "!fw4: Time rule #1"
+		meta time >= "2022-05-30 21:51:00" counter accept comment "!fw4: Time rule #2"
+		meta time >= "2022-05-30 21:00:00" counter accept comment "!fw4: Time rule #3"
+		meta time >= "2022-05-30 00:00:00" counter accept comment "!fw4: Time rule #4"
+		meta time >= "2022-05-01 00:00:00" counter accept comment "!fw4: Time rule #5"
+		meta time >= "2022-01-01 00:00:00" counter accept comment "!fw4: Time rule #6"
+		meta hour >= "21:51:23" counter accept comment "!fw4: Time rule #7"
+		meta hour >= "21:51:00" counter accept comment "!fw4: Time rule #8"
+		meta hour >= "21:00:00" counter accept comment "!fw4: Time rule #9"
+		meta time "2022-05-30 21:51:23"-"2022-06-01 23:51:23" counter accept comment "!fw4: Time rule #10"
+		meta hour "21:51:23"-"23:51:23" counter accept comment "!fw4: Time rule #11"
+		meta day { "Monday", "Tuesday", "Wednesday", "Sunday", "Thursday" } counter accept comment "!fw4: Time rule #12"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type route hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --
