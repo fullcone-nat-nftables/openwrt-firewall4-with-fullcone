@@ -338,11 +338,11 @@ function map_setmatch(set, match, proto) {
 
 		switch (t) {
 		case 'ipv4_addr':
-			fields[i] = `ip ${dir}saddr`;
+			fields[i] = `ip ${dir}addr`;
 			break;
 
 		case 'ipv6_addr':
-			fields[i] = `ip6 ${dir}saddr`;
+			fields[i] = `ip6 ${dir}addr`;
 			break;
 
 		case 'ether_addr':
