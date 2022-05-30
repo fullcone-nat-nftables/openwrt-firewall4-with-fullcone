@@ -840,6 +840,7 @@ return {
 					return null;
 
 				m = to_mask(b, length(a) == 16);
+				b = max(-1, b);
 			}
 
 			return [{

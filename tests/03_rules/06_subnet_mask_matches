@@ -71,6 +71,13 @@ permutations of rules need to be emitted.
 				"!::15/128",
 				"!::16/128"
 			]
+		},
+		{
+			".description": "Ensure that CIDRs with negative bitcount are properly translated",
+			"proto": "all",
+			"name": "Mask rule #3",
+			"src_ip": "::1/-64",
+			"dest_ip": "!::2/-64"
 		}
 	],
 	"redirect": [
@@ -159,6 +166,7 @@ table inet fw4 {
 		ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::9 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
 		ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff == ::10 ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
 		ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 ip6 daddr { ::11, ::12 } ip6 daddr != { ::15, ::16 } ip6 daddr & ::ffff != ::13 ip6 daddr & ::ffff != ::14 counter comment "!fw4: Mask rule #2"
+		ip6 saddr & ::ffff:ffff:ffff:ffff == ::1 ip6 daddr & ::ffff:ffff:ffff:ffff != ::2 counter comment "!fw4: Mask rule #3"
 		oifname "pppoe-wan" jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 		oifname "br-lan" jump output_lan comment "!fw4: Handle lan IPv4/IPv6 output traffic"
 		oifname "br-guest" jump output_guest comment "!fw4: Handle guest IPv4/IPv6 output traffic"
