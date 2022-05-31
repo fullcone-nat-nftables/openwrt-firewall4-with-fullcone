@@ -7,6 +7,8 @@ LOCK=/var/run/fw4.lock
 STATE=/var/run/fw4.state
 VERBOSE=
 
+[ -e /dev/stdin ] && STDIN=/dev/stdin || STDIN=/proc/self/fd/0
+
 [ -t 2 ] && export TTY=1
 
 die() {
@@ -31,7 +33,7 @@ start() {
 		esac
 
 		ACTION=start \
-			utpl -S $MAIN | nft $VERBOSE -f /proc/self/fd/0
+			utpl -S $MAIN | nft $VERBOSE -f $STDIN
 	} 1000>$LOCK
 }
 
@@ -68,7 +70,7 @@ flush() {
 
 reload_sets() {
 	ACTION=reload-sets \
-		flock -x $LOCK utpl -S $MAIN | nft $VERBOSE -f /proc/self/fd/0
+		flock -x $LOCK utpl -S $MAIN | nft $VERBOSE -f $STDIN
 }
 
 lookup() {
