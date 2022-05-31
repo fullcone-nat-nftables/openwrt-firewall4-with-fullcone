@@ -48,7 +48,7 @@ stop() {
 			nft delete table inet fw4
 			rm -f $STATE
 		else
-			die "The fw4 firewall does not appear to be loaded, try fw4 flush to delete all rules."
+			return 1
 		fi
 	} 1000>$LOCK
 }
@@ -97,13 +97,13 @@ case "$1" in
 		start "$1"
 	;;
 	stop)
-		stop
+		stop || die "The fw4 firewall does not appear to be loaded, try fw4 flush to delete all rules."
 	;;
 	flush)
 		flush
 	;;
 	restart)
-		stop
+		stop || rm -f $STATE
 		start
 	;;
 	print)
