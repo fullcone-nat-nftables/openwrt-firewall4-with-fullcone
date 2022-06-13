@@ -1037,7 +1037,7 @@ return {
 		if (!rv)
 			return null;
 
-		let helper = filter(this.state.helpers, h => (h.name == rv.val))[0];
+		let helper = filter(this.state.helpers, h => (h.name == rv.val))?.[0];
 
 		return helper ? { ...rv, ...helper } : null;
 	},
