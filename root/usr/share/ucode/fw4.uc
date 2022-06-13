@@ -1884,8 +1884,7 @@ return {
 
 		for (let helper in zone.helper) {
 			if (!helper.available) {
-				this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}', ignoring section`);
-				return;
+				this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}'`);
 			}
 		}
 
