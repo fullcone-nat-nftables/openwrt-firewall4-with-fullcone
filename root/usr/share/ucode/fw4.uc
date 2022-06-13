@@ -726,6 +726,13 @@ return {
 		this.cursor.foreach("firewall", "nat", n => self.parse_nat(n));
 
 
+		//
+		// Build list of includes
+		//
+
+		this.cursor.foreach("firewall", "include", i => self.parse_include(i));
+
+
 		if (use_statefile) {
 			let fd = fs.open(STATEFILE, "w");
 
@@ -734,7 +741,8 @@ return {
 					zones: this.state.zones,
 					ipsets: this.state.ipsets,
 					networks: this.state.networks,
-					ubus_rules: this.state.ubus_rules
+					ubus_rules: this.state.ubus_rules,
+					includes: this.state.includes
 				});
 
 				fd.close();
@@ -1475,6 +1483,29 @@ return {
 		return length(rv) ? rv : null;
 	},
 
+	parse_includetype: function(val) {
+		return this.parse_enum(val, [
+			"script",
+			"nftables"
+		]);
+	},
+
+	parse_includeposition: function(val) {
+		return replace(this.parse_enum(val, [
+			"ruleset-prepend",
+			"ruleset-postpend",
+			"ruleset-append",
+
+			"table-prepend",
+			"table-postpend",
+			"table-append",
+
+			"chain-prepend",
+			"chain-postpend",
+			"chain-append"
+		]), "postpend", "append");
+	},
+
 	parse_string: function(val) {
 		return "" + val;
 	},
@@ -1701,6 +1732,36 @@ return {
 
 	ipsets: function() {
 		return this.state.ipsets;
+	},
+
+	includes: function(position, chain) {
+		let stmts = [];
+		let pad = '';
+		let pre = '';
+
+		switch (position) {
+		case 'table-prepend':
+		case 'table-append':
+			pad = '\t';
+			pre = '\n';
+			break;
+
+		case 'chain-prepend':
+		case 'chain-append':
+			pad = '\t\t';
+			break;
+
+		default:
+			pre = '\n';
+		}
+
+		push(stmts, pre);
+
+		for (let inc in this.state.includes)
+			if (inc.type == 'nftables' && inc.position == position && (!chain || inc.chain == chain))
+				push(stmts, `${pad}include "${inc.path}"\n`);
+
+		print(length(stmts) > 1 ? join('', stmts) : '');
 	},
 
 	parse_setfile: function(set, cb) {
@@ -3010,6 +3071,66 @@ return {
 							add_rule(6, proto, saddr, daddr, rip[1], sport, dport, rport, snat);
 			}
 		}
+	},
+
+	parse_include: function(data) {
+		let inc = this.parse_options(data, {
+			enabled: [ "bool", "1" ],
+
+			path: [ "string", null, REQUIRED ],
+			type: [ "includetype", "script" ],
+
+			fw4_compatible: [ "bool", data.path != "/etc/firewall.user" ],
+
+			family: [ "family", null, UNSUPPORTED ],
+			reload: [ "bool", null, UNSUPPORTED ],
+
+			position: [ "includeposition" ],
+			chain: [ "string" ]
+		});
+
+		if (inc.type == "script" && !inc.fw4_compatible) {
+			this.warn_section(data, "is not marked as compatible with fw4, ignoring section");
+			this.warn_section(data, "requires 'option fw4_compatible 1' to be considered compatible");
+			return;
+		}
+
+		for (let opt in [ "table", "chain", "position" ]) {
+			if (inc.type != "nftables" && inc[opt]) {
+				this.warn_section(data, `must not specify '${opt}' for non-nftables includes, ignoring section`);
+				return;
+			}
+		}
+
+		switch (inc.position ??= 'table-append') {
+		case 'ruleset-prepend':
+		case 'ruleset-append':
+		case 'table-prepend':
+		case 'table-append':
+			if (inc.chain)
+				this.warn_section(data, `specifies 'chain' which has no effect for position ${inc.position}`);
+
+			delete inc.chain;
+			break;
+
+		case 'chain-prepend':
+		case 'chain-append':
+			if (!inc.chain) {
+				this.warn_section(data, `must specify 'chain' for position ${inc.position}, ignoring section`);
+				return;
+			}
+
+			break;
+		}
+
+		let path = fs.readlink(inc.path) ?? inc.path;
+
+		if (!fs.access(path)) {
+			this.warn_section(data, `specifies unreachable path '${path}', ignoring section`);
+			return;
+		}
+
+		push(this.state.includes ||= [], { ...inc, path });
 	},
 
 	parse_ipset: function(data) {

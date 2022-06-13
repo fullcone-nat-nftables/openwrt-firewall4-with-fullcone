@@ -113,6 +113,25 @@ function lookup_zone(name, dev) {
 	exit(1);
 }
 
+function run_includes() {
+	let state = read_state(),
+	    paths = [];
+
+	for (let inc in state.includes) {
+		if (inc.type != 'script')
+			continue;
+
+		let path = replace(inc.path, "'", "'\\''");
+		let rc = system([
+			'sh', '-c',
+			`exec 1000>&-; config() { echo "You cannot use UCI in firewall includes!" >&2; exit 1; }; . '${path}'`
+		], 30000);
+
+		if (rc != 0)
+			warn(`Include '${inc.path}' failed with exit code ${rc}\n`);
+	}
+}
+
 
 switch (getenv("ACTION")) {
 case "start":
@@ -132,4 +151,7 @@ case "device":
 
 case "zone":
 	return lookup_zone(getenv("OBJECT"), getenv("DEVICE"));
+
+case "includes":
+	return run_includes();
 }

@@ -5,7 +5,7 @@ return {
 	readlink: function(path) {
 		mocklib.trace_call("fs", "readlink", { path });
 
-		return path + "-link";
+		return path;
 	},
 
 	stat: function(path) {
@@ -149,6 +149,20 @@ return {
 		mocklib.trace_call("fs", "readfile", { path: fpath, limit });
 
 		return limit ? substr(mock, 0, limit) : mock;
+	},
+
+	access: (fpath) => {
+		let path = sprintf("fs/open~%s.txt", replace(fpath, /[^A-Za-z0-9_-]+/g, '_')),
+		    mock = mocklib.read_data_file(path);
+
+		if (!mock) {
+			mocklib.I("No stdout fixture defined for fs.access() path %s.", fpath);
+			mocklib.I("Provide a mock output through the following text file:\n%s\n", path);
+
+			return false;
+		}
+
+		return true;
 	},
 
 	opendir: (path) => {

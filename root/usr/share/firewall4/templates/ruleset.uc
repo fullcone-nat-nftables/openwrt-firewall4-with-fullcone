@@ -9,6 +9,7 @@ flush table inet fw4
 {% if (fw4.check_flowtable()): %}
 delete flowtable inet fw4 ft
 {% endif %}
+{% fw4.includes('ruleset-prepend') %}
 
 table inet fw4 {
 {% if (length(flowtable_devices) > 0): %}
@@ -80,6 +81,7 @@ table inet fw4 {
 	#
 
 	include "/etc/nftables.d/*.nft"
+{% fw4.includes('table-prepend') %}
 
 
 	#
@@ -91,6 +93,7 @@ table inet fw4 {
 
 		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
 
+{% fw4.includes('chain-prepend', 'input') %}
 		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
@@ -107,6 +110,7 @@ table inet fw4 {
 {% if (fw4.input_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
+{% fw4.includes('chain-append', 'input') %}
 	}
 
 	chain forward {
@@ -115,6 +119,7 @@ table inet fw4 {
 {% if (length(flowtable_devices) > 0): %}
 		meta l4proto { tcp, udp } flow offload @ft;
 {% endif %}
+{% fw4.includes('chain-prepend', 'forward') %}
 		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
@@ -125,6 +130,7 @@ table inet fw4 {
 {% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
 		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "forward" }) %}
 {% endfor; endfor %}
+{% fw4.includes('chain-append', 'forward') %}
 {% if (fw4.forward_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
@@ -135,6 +141,7 @@ table inet fw4 {
 
 		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
 
+{% fw4.includes('chain-prepend', 'output') %}
 		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
 {% if (fw4.default_option("drop_invalid")): %}
 		ct state invalid drop comment "!fw4: Drop flows with invalid conntrack state"
@@ -154,6 +161,7 @@ table inet fw4 {
 		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "output" }) %}
 {%  endfor %}
 {% endfor %}
+{% fw4.includes('chain-append', 'output') %}
 {% if (fw4.output_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
@@ -200,29 +208,35 @@ table inet fw4 {
 {% endif %}
 {% for (let zone in fw4.zones()): %}
 	chain input_{{ zone.name }} {
+{%  fw4.includes('chain-prepend', `input_${zone.name}`) %}
 {%  for (let rule in fw4.rules(`input_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 {%  if (zone.dflags.dnat): %}
 		ct status dnat accept comment "!fw4: Accept port redirections"
 {%  endif %}
+{%  fw4.includes('chain-append', `input_${zone.name}`) %}
 		jump {{ zone.input }}_from_{{ zone.name }}
 	}
 
 	chain output_{{ zone.name }} {
+{%  fw4.includes('chain-prepend', `output_${zone.name}`) %}
 {%  for (let rule in fw4.rules(`output_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
+{%  fw4.includes('chain-append', `output_${zone.name}`) %}
 		jump {{ zone.output }}_to_{{ zone.name }}
 	}
 
 	chain forward_{{ zone.name }} {
+{%  fw4.includes('chain-prepend', `forward_${zone.name}`) %}
 {%  for (let rule in fw4.rules(`forward_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {%  endfor %}
 {%  if (zone.dflags.dnat): %}
 		ct status dnat accept comment "!fw4: Accept port forwards"
 {%  endif %}
+{%  fw4.includes('chain-append', `forward_${zone.name}`) %}
 		jump {{ zone.forward }}_to_{{ zone.name }}
 	}
 
@@ -260,6 +274,7 @@ table inet fw4 {
 
 	chain dstnat {
 		type nat hook prerouting priority dstnat; policy accept;
+{% fw4.includes('chain-prepend', 'dstnat') %}
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.dnat): %}
 {%   for (let rule in zone.match_rules): %}
@@ -267,10 +282,12 @@ table inet fw4 {
 {%   endfor %}
 {%  endif %}
 {% endfor %}
+{% fw4.includes('chain-append', 'dstnat') %}
 	}
 
 	chain srcnat {
 		type nat hook postrouting priority srcnat; policy accept;
+{% fw4.includes('chain-prepend', 'srcnat') %}
 {% for (let redirect in fw4.redirects("srcnat")): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {% endfor %}
@@ -281,19 +298,23 @@ table inet fw4 {
 {%   endfor %}
 {%  endif %}
 {% endfor %}
+{% fw4.includes('chain-append', 'srcnat') %}
 	}
 
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags.dnat): %}
 	chain dstnat_{{ zone.name }} {
+{%   fw4.includes('chain-prepend', `dstnat_${zone.name}`) %}
 {%   for (let redirect in fw4.redirects(`dstnat_${zone.name}`)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {%   endfor %}
+{%   fw4.includes('chain-append', `dstnat_${zone.name}`) %}
 	}
 
 {%  endif %}
 {%  if (zone.dflags.snat): %}
 	chain srcnat_{{ zone.name }} {
+{%   fw4.includes('chain-prepend', `srcnat_${zone.name}`) %}
 {%   for (let redirect in fw4.redirects(`srcnat_${zone.name}`)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {%   endfor %}
@@ -311,6 +332,7 @@ table inet fw4 {
 {%     endfor %}
 {%    endfor %}
 {%   endif %}
+{%   fw4.includes('chain-append', `srcnat_${zone.name}`) %}
 	}
 
 {%  endif %}
@@ -333,10 +355,12 @@ table inet fw4 {
 {%   endfor %}
 {%  endif %}
 {% endfor %}
+{% fw4.includes('chain-append', 'raw_prerouting') %}
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
+{% fw4.includes('chain-prepend', 'raw_output') %}
 {% for (let zone in fw4.zones()): %}
 {%  if (zone.dflags["notrack"]): %}
 {%   for (let rule in zone.match_rules): %}
@@ -348,6 +372,7 @@ table inet fw4 {
 {%   endfor %}
 {%  endif %}
 {% endfor %}
+{% fw4.includes('chain-append', 'raw_output') %}
 	}
 
 {% for (let zone in fw4.zones()): %}
@@ -367,34 +392,43 @@ table inet fw4 {
 
 	chain mangle_prerouting {
 		type filter hook prerouting priority mangle; policy accept;
+{% fw4.includes('chain-prepend', 'mangle_prerouting') %}
 {% for (let rule in fw4.rules("mangle_prerouting")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
+{% fw4.includes('chain-append', 'mangle_prerouting') %}
 	}
 
 	chain mangle_postrouting {
 		type filter hook postrouting priority mangle; policy accept;
+{% fw4.includes('chain-prepend', 'mangle_postrouting') %}
 {% for (let rule in fw4.rules("mangle_postrouting")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
+{% fw4.includes('chain-append', 'mangle_postrouting') %}
 	}
 
 	chain mangle_input {
 		type filter hook input priority mangle; policy accept;
+{% fw4.includes('chain-prepend', 'mangle_input') %}
 {% for (let rule in fw4.rules("mangle_input")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
+{% fw4.includes('chain-append', 'mangle_input') %}
 	}
 
 	chain mangle_output {
 		type route hook output priority mangle; policy accept;
+{% fw4.includes('chain-prepend', 'mangle_output') %}
 {% for (let rule in fw4.rules("mangle_output")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
+{% fw4.includes('chain-append', 'mangle_output') %}
 	}
 
 	chain mangle_forward {
 		type filter hook forward priority mangle; policy accept;
+{% fw4.includes('chain-prepend', 'mangle_forward') %}
 {% for (let rule in fw4.rules("mangle_forward")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
@@ -406,5 +440,8 @@ table inet fw4 {
 {%   endfor %}
 {%  endif %}
 {% endfor %}
+{% fw4.includes('chain-append', 'mangle_forward') %}
 	}
+{% fw4.includes('table-append') %}
 }
+{% fw4.includes('ruleset-append') %}
