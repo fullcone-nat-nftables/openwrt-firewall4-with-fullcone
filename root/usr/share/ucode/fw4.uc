@@ -1881,9 +1881,12 @@ return {
 			this.warn_section(data, "is disabled, ignoring section");
 			return;
 		}
-		else if (zone.helper && !zone.helper.available) {
-			this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}', ignoring section`);
-			return;
+
+		for (let helper in zone.helper) {
+			if (!helper.available) {
+				this.warn_section(data, `uses unavailable ct helper '${zone.helper.name}', ignoring section`);
+				return;
+			}
 		}
 
 		if (zone.mtu_fix && this.kernel < 0x040a0000) {
