@@ -83,6 +83,59 @@ flush table inet fw4
 
 table inet fw4 {
 	#
+	# CT helper definitions
+	#
+
+	ct helper amanda {
+		type "amanda" protocol udp;
+	}
+
+	ct helper ftp {
+		type "ftp" protocol tcp;
+	}
+
+	ct helper RAS {
+		type "RAS" protocol udp;
+	}
+
+	ct helper Q.931 {
+		type "Q.931" protocol tcp;
+	}
+
+	ct helper irc {
+		type "irc" protocol tcp;
+	}
+
+	ct helper netbios-ns {
+		type "netbios-ns" protocol udp;
+	}
+
+	ct helper pptp {
+		type "pptp" protocol tcp;
+	}
+
+	ct helper sane {
+		type "sane" protocol tcp;
+	}
+
+	ct helper sip {
+		type "sip" protocol udp;
+	}
+
+	ct helper snmp {
+		type "snmp" protocol udp;
+	}
+
+	ct helper tftp {
+		type "tftp" protocol udp;
+	}
+
+	ct helper rtsp {
+		type "rtsp" protocol tcp;
+	}
+
+
+	#
 	# Set definitions
 	#
 
@@ -141,6 +194,14 @@ table inet fw4 {
 		oifname "zone4" jump output_test4 comment "!fw4: Handle test4 IPv4/IPv6 output traffic"
 	}
 
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+		iifname "zone1" jump helper_test1 comment "!fw4: test1 IPv4/IPv6 CT helper assignment"
+		iifname "zone2" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
+		iifname "zone3" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
+		iifname "zone4" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
+	}
+
 	chain handle_reject {
 		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
 		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
@@ -156,6 +217,10 @@ table inet fw4 {
 
 	chain forward_test1 {
 		jump drop_to_test1
+	}
+
+	chain helper_test1 {
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
 	}
 
 	chain drop_from_test1 {
@@ -178,6 +243,10 @@ table inet fw4 {
 		jump drop_to_test2
 	}
 
+	chain helper_test2 {
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+	}
+
 	chain drop_from_test2 {
 		iifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
 	}
@@ -198,6 +267,10 @@ table inet fw4 {
 		jump drop_to_test3
 	}
 
+	chain helper_test3 {
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+	}
+
 	chain drop_from_test3 {
 		iifname "zone3" counter drop comment "!fw4: drop test3 IPv4/IPv6 traffic"
 	}
@@ -216,6 +289,21 @@ table inet fw4 {
 
 	chain forward_test4 {
 		jump drop_to_test4
+	}
+
+	chain helper_test4 {
+		meta l4proto udp udp dport 10080 ct helper set "amanda" comment "!fw4: Amanda backup and archiving proto"
+		meta l4proto tcp tcp dport 21 ct helper set "ftp" comment "!fw4: FTP passive connection tracking"
+		meta l4proto udp udp dport 1719 ct helper set "RAS" comment "!fw4: RAS proto tracking"
+		meta l4proto tcp tcp dport 1720 ct helper set "Q.931" comment "!fw4: Q.931 proto tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 6667 ct helper set "irc" comment "!fw4: IRC DCC connection tracking"
+		meta nfproto ipv4 meta l4proto udp udp dport 137 ct helper set "netbios-ns" comment "!fw4: NetBIOS name service broadcast tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 1723 ct helper set "pptp" comment "!fw4: PPTP VPN connection tracking"
+		meta l4proto tcp tcp dport 6566 ct helper set "sane" comment "!fw4: SANE scanner connection tracking"
+		meta l4proto udp udp dport 5060 ct helper set "sip" comment "!fw4: SIP VoIP connection tracking"
+		meta nfproto ipv4 meta l4proto udp udp dport 161 ct helper set "snmp" comment "!fw4: SNMP monitoring connection tracking"
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 554 ct helper set "rtsp" comment "!fw4: RTSP connection tracking"
 	}
 
 	chain drop_from_test4 {
@@ -251,94 +339,15 @@ table inet fw4 {
 
 
 	#
-	# Raw rules (notrack & helper)
+	# Raw rules (notrack)
 	#
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		iifname "zone1" jump helper_test1 comment "!fw4: test1 IPv4/IPv6 CT helper assignment"
-		iifname "zone2" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
-		iifname "zone3" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
-		iifname "zone4" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-	}
-
-	ct helper amanda {
-		type "amanda" protocol udp;
-	}
-
-	ct helper ftp {
-		type "ftp" protocol tcp;
-	}
-
-	ct helper RAS {
-		type "RAS" protocol udp;
-	}
-
-	ct helper Q.931 {
-		type "Q.931" protocol tcp;
-	}
-
-	ct helper irc {
-		type "irc" protocol tcp;
-	}
-
-	ct helper netbios-ns {
-		type "netbios-ns" protocol udp;
-	}
-
-	ct helper pptp {
-		type "pptp" protocol tcp;
-	}
-
-	ct helper sane {
-		type "sane" protocol tcp;
-	}
-
-	ct helper sip {
-		type "sip" protocol udp;
-	}
-
-	ct helper snmp {
-		type "snmp" protocol udp;
-	}
-
-	ct helper tftp {
-		type "tftp" protocol udp;
-	}
-
-	ct helper rtsp {
-		type "rtsp" protocol tcp;
-	}
-
-	chain helper_test1 {
-		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
-	}
-
-	chain helper_test2 {
-		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
-	}
-
-	chain helper_test3 {
-		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
-	}
-
-	chain helper_test4 {
-		meta l4proto udp udp dport 10080 ct helper set "amanda" comment "!fw4: Amanda backup and archiving proto"
-		meta l4proto tcp tcp dport 21 ct helper set "ftp" comment "!fw4: FTP passive connection tracking"
-		meta l4proto udp udp dport 1719 ct helper set "RAS" comment "!fw4: RAS proto tracking"
-		meta l4proto tcp tcp dport 1720 ct helper set "Q.931" comment "!fw4: Q.931 proto tracking"
-		meta nfproto ipv4 meta l4proto tcp tcp dport 6667 ct helper set "irc" comment "!fw4: IRC DCC connection tracking"
-		meta nfproto ipv4 meta l4proto udp udp dport 137 ct helper set "netbios-ns" comment "!fw4: NetBIOS name service broadcast tracking"
-		meta nfproto ipv4 meta l4proto tcp tcp dport 1723 ct helper set "pptp" comment "!fw4: PPTP VPN connection tracking"
-		meta l4proto tcp tcp dport 6566 ct helper set "sane" comment "!fw4: SANE scanner connection tracking"
-		meta l4proto udp udp dport 5060 ct helper set "sip" comment "!fw4: SIP VoIP connection tracking"
-		meta nfproto ipv4 meta l4proto udp udp dport 161 ct helper set "snmp" comment "!fw4: SNMP monitoring connection tracking"
-		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
-		meta nfproto ipv4 meta l4proto tcp tcp dport 554 ct helper set "rtsp" comment "!fw4: RTSP connection tracking"
 	}
 
 

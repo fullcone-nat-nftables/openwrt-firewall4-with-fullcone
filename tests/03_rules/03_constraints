@@ -128,6 +128,10 @@ table inet fw4 {
 		meta nfproto ipv6 ip6 dscp 0x0 counter comment "!fw4: DSCP match rule #1"
 	}
 
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+	}
+
 	chain handle_reject {
 		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
 		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
@@ -143,6 +147,9 @@ table inet fw4 {
 
 	chain forward_lan {
 		jump drop_to_lan
+	}
+
+	chain helper_lan {
 	}
 
 	chain drop_from_lan {
@@ -166,7 +173,7 @@ table inet fw4 {
 
 
 	#
-	# Raw rules (notrack & helper)
+	# Raw rules (notrack)
 	#
 
 	chain raw_prerouting {
@@ -175,9 +182,6 @@ table inet fw4 {
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-	}
-
-	chain helper_lan {
 	}
 
 

@@ -120,6 +120,13 @@ table inet fw4 {
 		oifname "zone3" jump output_test3 comment "!fw4: Handle test3 IPv4/IPv6 output traffic"
 	}
 
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+		iifname "zone1" jump helper_test1 comment "!fw4: test1 IPv4/IPv6 CT helper assignment"
+		iifname "zone2" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
+		iifname "zone3" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
+	}
+
 	chain handle_reject {
 		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
 		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
@@ -135,6 +142,9 @@ table inet fw4 {
 
 	chain forward_test1 {
 		jump accept_to_test1
+	}
+
+	chain helper_test1 {
 	}
 
 	chain accept_from_test1 {
@@ -157,6 +167,9 @@ table inet fw4 {
 		jump drop_to_test2
 	}
 
+	chain helper_test2 {
+	}
+
 	chain drop_from_test2 {
 		iifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
 	}
@@ -175,6 +188,9 @@ table inet fw4 {
 
 	chain forward_test3 {
 		jump reject_to_test3
+	}
+
+	chain helper_test3 {
 	}
 
 	chain reject_from_test3 {
@@ -200,27 +216,15 @@ table inet fw4 {
 
 
 	#
-	# Raw rules (notrack & helper)
+	# Raw rules (notrack)
 	#
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		iifname "zone1" jump helper_test1 comment "!fw4: test1 IPv4/IPv6 CT helper assignment"
-		iifname "zone2" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
-		iifname "zone3" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-	}
-
-	chain helper_test1 {
-	}
-
-	chain helper_test2 {
-	}
-
-	chain helper_test3 {
 	}
 
 

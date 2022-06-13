@@ -202,6 +202,12 @@ table inet fw4 {
 		oifname { "eth2", "eth3" } jump output_wan comment "!fw4: Handle wan IPv4/IPv6 output traffic"
 	}
 
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+		iifname { "eth0", "eth1" } jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
+		iifname { "eth2", "eth3" } jump helper_wan comment "!fw4: wan IPv4/IPv6 CT helper assignment"
+	}
+
 	chain handle_reject {
 		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
 		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
@@ -217,6 +223,9 @@ table inet fw4 {
 
 	chain forward_lan {
 		jump drop_to_lan
+	}
+
+	chain helper_lan {
 	}
 
 	chain drop_from_lan {
@@ -237,6 +246,9 @@ table inet fw4 {
 
 	chain forward_wan {
 		jump drop_to_wan
+	}
+
+	chain helper_wan {
 	}
 
 	chain drop_from_wan {
@@ -262,23 +274,15 @@ table inet fw4 {
 
 
 	#
-	# Raw rules (notrack & helper)
+	# Raw rules (notrack)
 	#
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		iifname { "eth0", "eth1" } jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
-		iifname { "eth2", "eth3" } jump helper_wan comment "!fw4: wan IPv4/IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-	}
-
-	chain helper_lan {
-	}
-
-	chain helper_wan {
 	}
 
 

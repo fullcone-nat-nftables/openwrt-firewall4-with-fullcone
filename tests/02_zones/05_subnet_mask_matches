@@ -110,6 +110,13 @@ table inet fw4 {
 		meta nfproto ipv6 ip6 daddr { ::3, ::4 } ip6 daddr != { ::7, ::8 } ip6 daddr & ::ffff != ::5 ip6 daddr & ::ffff != ::6 jump output_test2 comment "!fw4: Handle test2 IPv6 output traffic"
 	}
 
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+		meta nfproto ipv6 ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::1 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
+		meta nfproto ipv6 ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::2 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
+		meta nfproto ipv6 ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
+	}
+
 	chain handle_reject {
 		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
 		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
@@ -125,6 +132,9 @@ table inet fw4 {
 
 	chain forward_test1 {
 		jump drop_to_test1
+	}
+
+	chain helper_test1 {
 	}
 
 	chain drop_from_test1 {
@@ -145,6 +155,9 @@ table inet fw4 {
 
 	chain forward_test2 {
 		jump drop_to_test2
+	}
+
+	chain helper_test2 {
 	}
 
 	chain drop_from_test2 {
@@ -174,24 +187,15 @@ table inet fw4 {
 
 
 	#
-	# Raw rules (notrack & helper)
+	# Raw rules (notrack)
 	#
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-		meta nfproto ipv6 ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::1 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
-		meta nfproto ipv6 ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff == ::2 ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
-		meta nfproto ipv6 ip6 saddr { ::3, ::4 } ip6 saddr != { ::7, ::8 } ip6 saddr & ::ffff != ::5 ip6 saddr & ::ffff != ::6 jump helper_test2 comment "!fw4: test2 IPv6 CT helper assignment"
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-	}
-
-	chain helper_test1 {
-	}
-
-	chain helper_test2 {
 	}
 
 

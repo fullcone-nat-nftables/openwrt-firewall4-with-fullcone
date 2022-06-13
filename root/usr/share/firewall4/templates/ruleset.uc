@@ -1,4 +1,7 @@
-{% let flowtable_devices = fw4.resolve_offload_devices(); -%}
+{%
+	let flowtable_devices = fw4.resolve_offload_devices();
+	let available_helpers = filter(fw4.helpers(), h => h.available);
+-%}
 
 table inet fw4
 flush table inet fw4
@@ -19,6 +22,21 @@ table inet fw4 {
 		flags offload;
 {% endif %}
 	}
+
+{% endif %}
+{% if (length(available_helpers)): %}
+	#
+	# CT helper definitions
+	#
+
+{%  for (let helper in available_helpers): %}
+{%   for (let proto in helper.proto): %}
+	ct helper {{ helper.name }} {
+		type {{ fw4.quote(helper.name, true) }} protocol {{ proto.name }};
+	}
+
+{%   endfor %}
+{%  endfor %}
 
 {% endif %}
 	#
@@ -123,12 +141,42 @@ table inet fw4 {
 {% for (let rule in fw4.rules("output")): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
-{% for (let zone in fw4.zones()): for (let rule in zone.match_rules): %}
+{% for (let zone in fw4.zones()): %}
+{%  for (let rule in zone.match_rules): %}
+{%   if (zone.dflags.helper): %}
+{%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, true); %}
+{%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
+{%    if (devices_pos || subnets_pos): %}
+		{%+ if (rule.family): -%}
+			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
+		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
+		jump helper_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT helper assignment"
+{%    endif %}
+{%   endif %}
 		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "output" }) %}
-{% endfor; endfor %}
+{%  endfor %}
+{% endfor %}
 {% if (fw4.output_policy() == "reject"): %}
 		jump handle_reject
 {% endif %}
+	}
+
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+{% for (let zone in fw4.zones()): %}
+{%  if (zone.dflags.helper): %}
+{%   for (let rule in zone.match_rules): %}
+{%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, false); %}
+{%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
+{%    if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
+		{%+ if (rule.family): -%}
+			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
+		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
+		jump helper_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT helper assignment"
+{%    endif %}
+{%   endfor %}
+{%  endif %}
+{% endfor %}
 	}
 
 	chain handle_reject {
@@ -183,6 +231,14 @@ table inet fw4 {
 		jump {{ zone.forward }}_to_{{ zone.name }}
 	}
 
+{%  if (zone.dflags.helper): %}
+	chain helper_{{ zone.name }} {
+{%   for (let rule in fw4.rules(`helper_${zone.name}`)): %}
+		{%+ include("rule.uc", { fw4, rule }) %}
+{%   endfor %}
+	}
+
+{%  endif %}
 {%  for (let verdict in ["accept", "reject", "drop"]): %}
 {%   if (zone.sflags[verdict]): %}
 	chain {{ verdict }}_from_{{ zone.name }} {
@@ -266,74 +322,54 @@ table inet fw4 {
 {% endfor %}
 
 	#
-	# Raw rules (notrack & helper)
+	# Raw rules (notrack)
 	#
 
 	chain raw_prerouting {
 		type filter hook prerouting priority raw; policy accept;
-{% for (let target in ["helper", "notrack"]): %}
-{%  for (let zone in fw4.zones()): %}
-{%   if (zone.dflags[target]): %}
-{%    for (let rule in zone.match_rules): %}
-{%     let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, false); %}
-{%     let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
-{%     if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
+{% for (let zone in fw4.zones()): %}
+{%  if (zone.dflags["notrack"]): %}
+{%   for (let rule in zone.match_rules): %}
+{%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, false); %}
+{%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
+{%    if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
 		{%+ if (rule.family): -%}
 			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
 		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
-		jump {{ target }}_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} {{
-			(target == "helper") ? "CT helper assignment" : "CT bypass"
-		}}"
-{%     endif %}
-{%    endfor %}
-{%   endif %}
-{%  endfor %}
+		jump notrack_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT bypass"
+{%    endif %}
+{%   endfor %}
+{%  endif %}
 {% endfor %}
 	}
 
 	chain raw_output {
 		type filter hook output priority raw; policy accept;
-{% for (let target in ["helper", "notrack"]): %}
-{%  for (let zone in fw4.zones()): %}
-{%   if (zone.dflags[target]): %}
-{%    for (let rule in zone.match_rules): %}
-{%     let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, true); %}
-{%     let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
-{%     if (devices_pos || subnets_pos): %}
+{% for (let zone in fw4.zones()): %}
+{%  if (zone.dflags["notrack"]): %}
+{%   for (let rule in zone.match_rules): %}
+{%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, true); %}
+{%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
+{%    if (devices_pos || subnets_pos): %}
 		{%+ if (rule.family): -%}
 			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
 		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
-		jump {{ target }}_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} {{
-			(target == "helper") ? "CT helper assignment" : "CT bypass"
-		}}"
-{%     endif %}
-{%    endfor %}
-{%   endif %}
-{%  endfor %}
-{% endfor %}
-	}
-
-{% for (let helper in fw4.helpers()): %}
-{%  if (helper.available): %}
-{%   for (let proto in helper.proto): %}
-	ct helper {{ helper.name }} {
-		type {{ fw4.quote(helper.name, true) }} protocol {{ proto.name }};
-	}
-
+		jump notrack_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT bypass"
+{%    endif %}
 {%   endfor %}
 {%  endif %}
 {% endfor %}
-{% for (let target in ["helper", "notrack"]): %}
-{%  for (let zone in fw4.zones()): %}
-{%   if (zone.dflags[target]): %}
-	chain {{ target }}_{{ zone.name }} {
-{% for (let rule in fw4.rules(`${target}_${zone.name}`)): %}
+	}
+
+{% for (let zone in fw4.zones()): %}
+{%   if (zone.dflags.notrack): %}
+	chain notrack_{{ zone.name }} {
+{% for (let rule in fw4.rules(`notrack_${zone.name}`)): %}
 		{%+ include("rule.uc", { fw4, rule }) %}
 {% endfor %}
 	}
 
 {%   endif %}
-{%  endfor %}
 {% endfor %}
 
 	#
