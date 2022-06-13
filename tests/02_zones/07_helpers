@@ -1,0 +1,374 @@
+Testing zone helper assignments
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File fs/open~_sys_class_net_zone1_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone2_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone3_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone4_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_zone5_flags.txt --
+0x1103
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			".description": "Setting masq to true for a zone with a helper should emit a helper chain for the zone with the configured helper",
+			"name": "test1",
+			"device": "zone1",
+			"masq": "1",
+			"helper": [ "tftp" ]
+		},
+		{
+			".description": "Setting masq6 to true for a zone with a helper should emit a helper chain for the zone with the configured helper",
+			"name": "test2",
+			"device": "zone2",
+			"masq6": "1",
+			"helper": [ "tftp" ]
+		},
+		{
+			".description": "Disabling both masq and masq6 for a zone with a helper should emit a helper chain for the zone with the configured helper",
+			"name": "test3",
+			"device": "zone3",
+			"masq": "0",
+			"masq6": "0",
+			"helper": [ "tftp" ]
+		},
+		{
+			".description": "Disabling both masq and masq6 for a zone with a helper should configure default helper assignment",
+			"name": "test4",
+			"device": "zone4",
+			"masq": "0",
+			"masq6": "0",
+		},
+		{
+			".description": "Specifying an invalid helper should write a warning to stderr",
+			"name": "test5",
+			"device": "zone5",
+			"masq": "0",
+			"masq6": "0",
+			"helper": [ "foo" ]
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define test1_devices = { "zone1" }
+	define test2_devices = { "zone2" }
+	define test3_devices = { "zone3" }
+	define test4_devices = { "zone4" }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "zone1" jump input_test1 comment "!fw4: Handle test1 IPv4/IPv6 input traffic"
+		iifname "zone2" jump input_test2 comment "!fw4: Handle test2 IPv4/IPv6 input traffic"
+		iifname "zone3" jump input_test3 comment "!fw4: Handle test3 IPv4/IPv6 input traffic"
+		iifname "zone4" jump input_test4 comment "!fw4: Handle test4 IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "zone1" jump forward_test1 comment "!fw4: Handle test1 IPv4/IPv6 forward traffic"
+		iifname "zone2" jump forward_test2 comment "!fw4: Handle test2 IPv4/IPv6 forward traffic"
+		iifname "zone3" jump forward_test3 comment "!fw4: Handle test3 IPv4/IPv6 forward traffic"
+		iifname "zone4" jump forward_test4 comment "!fw4: Handle test4 IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "zone1" jump output_test1 comment "!fw4: Handle test1 IPv4/IPv6 output traffic"
+		oifname "zone2" jump output_test2 comment "!fw4: Handle test2 IPv4/IPv6 output traffic"
+		oifname "zone3" jump output_test3 comment "!fw4: Handle test3 IPv4/IPv6 output traffic"
+		oifname "zone4" jump output_test4 comment "!fw4: Handle test4 IPv4/IPv6 output traffic"
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test1 {
+		jump drop_from_test1
+	}
+
+	chain output_test1 {
+		jump drop_to_test1
+	}
+
+	chain forward_test1 {
+		jump drop_to_test1
+	}
+
+	chain drop_from_test1 {
+		iifname "zone1" counter drop comment "!fw4: drop test1 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test1 {
+		oifname "zone1" counter drop comment "!fw4: drop test1 IPv4/IPv6 traffic"
+	}
+
+	chain input_test2 {
+		jump drop_from_test2
+	}
+
+	chain output_test2 {
+		jump drop_to_test2
+	}
+
+	chain forward_test2 {
+		jump drop_to_test2
+	}
+
+	chain drop_from_test2 {
+		iifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test2 {
+		oifname "zone2" counter drop comment "!fw4: drop test2 IPv4/IPv6 traffic"
+	}
+
+	chain input_test3 {
+		jump drop_from_test3
+	}
+
+	chain output_test3 {
+		jump drop_to_test3
+	}
+
+	chain forward_test3 {
+		jump drop_to_test3
+	}
+
+	chain drop_from_test3 {
+		iifname "zone3" counter drop comment "!fw4: drop test3 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test3 {
+		oifname "zone3" counter drop comment "!fw4: drop test3 IPv4/IPv6 traffic"
+	}
+
+	chain input_test4 {
+		jump drop_from_test4
+	}
+
+	chain output_test4 {
+		jump drop_to_test4
+	}
+
+	chain forward_test4 {
+		jump drop_to_test4
+	}
+
+	chain drop_from_test4 {
+		iifname "zone4" counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test4 {
+		oifname "zone4" counter drop comment "!fw4: drop test4 IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "zone1" jump srcnat_test1 comment "!fw4: Handle test1 IPv4/IPv6 srcnat traffic"
+		oifname "zone2" jump srcnat_test2 comment "!fw4: Handle test2 IPv4/IPv6 srcnat traffic"
+	}
+
+	chain srcnat_test1 {
+		meta nfproto ipv4 masquerade comment "!fw4: Masquerade IPv4 test1 traffic"
+	}
+
+	chain srcnat_test2 {
+		meta nfproto ipv6 masquerade comment "!fw4: Masquerade IPv6 test2 traffic"
+	}
+
+
+	#
+	# Raw rules (notrack & helper)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "zone1" jump helper_test1 comment "!fw4: test1 IPv4/IPv6 CT helper assignment"
+		iifname "zone2" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
+		iifname "zone3" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
+		iifname "zone4" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+	ct helper amanda {
+		type "amanda" protocol udp;
+	}
+
+	ct helper ftp {
+		type "ftp" protocol tcp;
+	}
+
+	ct helper RAS {
+		type "RAS" protocol udp;
+	}
+
+	ct helper Q.931 {
+		type "Q.931" protocol tcp;
+	}
+
+	ct helper irc {
+		type "irc" protocol tcp;
+	}
+
+	ct helper netbios-ns {
+		type "netbios-ns" protocol udp;
+	}
+
+	ct helper pptp {
+		type "pptp" protocol tcp;
+	}
+
+	ct helper sane {
+		type "sane" protocol tcp;
+	}
+
+	ct helper sip {
+		type "sip" protocol udp;
+	}
+
+	ct helper snmp {
+		type "snmp" protocol udp;
+	}
+
+	ct helper tftp {
+		type "tftp" protocol udp;
+	}
+
+	ct helper rtsp {
+		type "rtsp" protocol tcp;
+	}
+
+	chain helper_test1 {
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+	}
+
+	chain helper_test2 {
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+	}
+
+	chain helper_test3 {
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+	}
+
+	chain helper_test4 {
+		meta l4proto udp udp dport 10080 ct helper set "amanda" comment "!fw4: Amanda backup and archiving proto"
+		meta l4proto tcp tcp dport 21 ct helper set "ftp" comment "!fw4: FTP passive connection tracking"
+		meta l4proto udp udp dport 1719 ct helper set "RAS" comment "!fw4: RAS proto tracking"
+		meta l4proto tcp tcp dport 1720 ct helper set "Q.931" comment "!fw4: Q.931 proto tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 6667 ct helper set "irc" comment "!fw4: IRC DCC connection tracking"
+		meta nfproto ipv4 meta l4proto udp udp dport 137 ct helper set "netbios-ns" comment "!fw4: NetBIOS name service broadcast tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 1723 ct helper set "pptp" comment "!fw4: PPTP VPN connection tracking"
+		meta l4proto tcp tcp dport 6566 ct helper set "sane" comment "!fw4: SANE scanner connection tracking"
+		meta l4proto udp udp dport 5060 ct helper set "sip" comment "!fw4: SIP VoIP connection tracking"
+		meta nfproto ipv4 meta l4proto udp udp dport 161 ct helper set "snmp" comment "!fw4: SNMP monitoring connection tracking"
+		meta l4proto udp udp dport 69 ct helper set "tftp" comment "!fw4: TFTP connection tracking"
+		meta nfproto ipv4 meta l4proto tcp tcp dport 554 ct helper set "rtsp" comment "!fw4: RTSP connection tracking"
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type route hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --
+
+-- Expect stderr --
+[!] Section @zone[4] (test5) option 'helper' specifies invalid value 'foo'
+[!] Section @zone[4] (test5) skipped due to invalid options
+-- End --
