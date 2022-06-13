@@ -1651,16 +1651,7 @@ return {
 	},
 
 	is_loopback_dev: function(dev) {
-		let fd = fs.open(`/sys/class/net/${dev}/flags`, "r");
-
-		if (!fd)
-			return false;
-
-		let flags = +fd.read("line");
-
-		fd.close();
-
-		return !!(flags & 0x8);
+		return !!(+fs.readfile(`/sys/class/net/${dev}/flags`) & 0x8);
 	},
 
 	is_loopback_addr: function(addr) {

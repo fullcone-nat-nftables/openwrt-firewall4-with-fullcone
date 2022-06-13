@@ -316,6 +316,6 @@ table inet fw4 {
 		}
 	' 2>/dev/null> timeout <null>
 [call] fs.popen cmdline </usr/sbin/nft --terse --json list flowtables inet> mode <r>
-[call] fs.open path </sys/class/net/br-lan/flags> mode <r>
-[call] fs.open path </sys/class/net/br-lan/flags> mode <r>
+[call] fs.readfile path </sys/class/net/br-lan/flags> limit <null>
+[call] fs.readfile path </sys/class/net/br-lan/flags> limit <null>
 -- End --

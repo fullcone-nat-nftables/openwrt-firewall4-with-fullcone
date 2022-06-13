@@ -135,6 +135,22 @@ return {
 		};
 	},
 
+	readfile: (fpath, limit) => {
+		let path = sprintf("fs/open~%s.txt", replace(fpath, /[^A-Za-z0-9_-]+/g, '_')),
+		    mock = mocklib.read_data_file(path);
+
+		if (!mock) {
+			mocklib.I("No stdout fixture defined for fs.readfile() path %s.", fpath);
+			mocklib.I("Provide a mock output through the following text file:\n%s\n", path);
+
+			return null;
+		}
+
+		mocklib.trace_call("fs", "readfile", { path: fpath, limit });
+
+		return limit ? substr(mock, 0, limit) : mock;
+	},
+
 	opendir: (path) => {
 		let file = sprintf("fs/opendir~%s.json", replace(path, /[^A-Za-z0-9_-]+/g, '_')),
 		    mock = mocklib.read_json_file(file),
