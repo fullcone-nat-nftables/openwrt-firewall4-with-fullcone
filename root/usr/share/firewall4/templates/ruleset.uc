@@ -1,6 +1,7 @@
 {%
 	let flowtable_devices = fw4.resolve_offload_devices();
 	let available_helpers = filter(fw4.helpers(), h => h.available);
+	let defined_ipsets = fw4.ipsets();
 -%}
 
 table inet fw4
@@ -23,6 +24,7 @@ table inet fw4 {
 {% endif %}
 	}
 
+
 {% endif %}
 {% if (length(available_helpers)): %}
 	#
@@ -39,39 +41,38 @@ table inet fw4 {
 {%  endfor %}
 
 {% endif %}
+{% if (length(defined_ipsets)): %}
 	#
 	# Set definitions
 	#
 
-{% for (let set in fw4.ipsets()): %}
+{%  for (let set in defined_ipsets): %}
 	set {{ set.name }} {
 		type {{ fw4.concat(set.types) }}
-{%  if (set.maxelem > 0): %}
+{%   if (set.maxelem > 0): %}
 		size {{ set.maxelem }}
-{%  endif %}
-{%  if (set.timeout >= 0): %}
+{%   endif %}
+{%   if (set.timeout >= 0): %}
 		timeout {{ set.timeout }}s
-{% endif %}
-{%  if (set.interval): %}
+{%   endif %}
+{%   if (set.interval): %}
 		flags interval
 		auto-merge
-{%  endif %}
-{%  fw4.print_setentries(set) %}
+{%   endif %}
+{%   fw4.print_setentries(set) %}
 	}
 
-{% endfor %}
+{%  endfor %}
 
+{% endif %}
 	#
 	# Defines
 	#
 
 {% for (let zone in fw4.zones()): %}
-{%  if (length(zone.match_devices)): %}
 	define {{ zone.name }}_devices = {{ fw4.set(zone.match_devices, true) }}
-{%  endif %}
-{%  if (length(zone.match_subnets)): %}
 	define {{ zone.name }}_subnets = {{ fw4.set(zone.match_subnets, true) }}
-{%  endif %}
+
 {% endfor %}
 
 	#

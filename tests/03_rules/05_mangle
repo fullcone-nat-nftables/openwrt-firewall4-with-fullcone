@@ -152,16 +152,15 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
 	define lan_devices = { "eth0", "eth1" }
+	define lan_subnets = {  }
+
 	define wan_devices = { "eth2", "eth3" }
+	define wan_subnets = {  }
+
 
 	#
 	# User includes

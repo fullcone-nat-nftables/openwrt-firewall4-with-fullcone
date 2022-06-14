@@ -70,19 +70,24 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
+	define test1_devices = {  }
 	define test1_subnets = { 10.0.0.0/8 }
+
+	define test2_devices = {  }
 	define test2_subnets = { 2001:db8:1234::/64 }
+
+	define test3_devices = {  }
 	define test3_subnets = { 2001:db8:1234::/64 }
+
+	define test4_devices = {  }
 	define test4_subnets = { 2001:db8:1234::/64 }
+
 	define test5_devices = { "eth0" }
+	define test5_subnets = {  }
+
 
 	#
 	# User includes

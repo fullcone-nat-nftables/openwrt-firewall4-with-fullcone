@@ -57,11 +57,6 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 

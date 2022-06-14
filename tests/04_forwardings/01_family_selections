@@ -63,17 +63,18 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
 	define wanA_devices = { "eth0" }
+	define wanA_subnets = {  }
+
 	define wanB_devices = { "eth1" }
+	define wanB_subnets = {  }
+
 	define lan_devices = { "eth2" }
+	define lan_subnets = {  }
+
 
 	#
 	# User includes

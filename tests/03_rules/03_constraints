@@ -84,13 +84,11 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
+
+	define lan_devices = {  }
+	define lan_subnets = {  }
 
 
 	#

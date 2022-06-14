@@ -87,19 +87,24 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
 	define test1_devices = { "+" }
+	define test1_subnets = {  }
+
 	define test2_devices = { "/never/" }
+	define test2_subnets = {  }
+
 	define test3_devices = { "test*" }
+	define test3_subnets = {  }
+
 	define test4_devices = { "foo*", "bar*", "test1", "test2" }
+	define test4_subnets = {  }
+
 	define test5_devices = { "foo*", "bar*", "test1", "test2" }
+	define test5_subnets = {  }
+
 
 	#
 	# User includes

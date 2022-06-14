@@ -182,7 +182,9 @@ table inet fw4 {
 	# Defines
 	#
 
+	define ipv4only_devices = {  }
 	define ipv4only_subnets = { 192.168.1.0/24 }
+
 
 	#
 	# User includes

@@ -55,15 +55,15 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
+	define test1_devices = {  }
+	define test1_subnets = {  }
+
+	define test2_devices = {  }
 	define test2_subnets = { ::3, ::4 }
+
 
 	#
 	# User includes

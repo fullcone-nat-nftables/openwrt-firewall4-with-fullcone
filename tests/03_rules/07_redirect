@@ -136,19 +136,18 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
 	define wan_devices = { "pppoe-wan" }
 	define wan_subnets = { 10.11.12.0/24, 2001:db8:54:321::/64 }
+
 	define lan_devices = { "br-lan" }
 	define lan_subnets = { 10.0.0.0/24, 192.168.26.0/24, 2001:db8:1000::/60, fd63:e2f:f706::/60 }
+
 	define noaddr_devices = { "wwan0" }
+	define noaddr_subnets = {  }
+
 
 	#
 	# User includes

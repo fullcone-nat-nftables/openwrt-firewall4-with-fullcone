@@ -70,17 +70,18 @@ flush table inet fw4
 
 table inet fw4 {
 	#
-	# Set definitions
-	#
-
-
-	#
 	# Defines
 	#
 
 	define test1_devices = { "zone1" }
+	define test1_subnets = {  }
+
 	define test2_devices = { "zone2" }
+	define test2_subnets = {  }
+
 	define test3_devices = { "zone3" }
+	define test3_subnets = {  }
+
 
 	#
 	# User includes
