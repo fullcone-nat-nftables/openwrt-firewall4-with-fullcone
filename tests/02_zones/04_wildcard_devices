@@ -163,14 +163,14 @@ table inet fw4 {
 
 	chain prerouting {
 		type filter hook prerouting priority filter; policy accept;
-		iifname "/never/" jump helper_test2 comment "!fw4: test2 IPv4/IPv6 CT helper assignment"
-		iifname "test*" jump helper_test3 comment "!fw4: test3 IPv4/IPv6 CT helper assignment"
-		iifname "foo*" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
-		iifname "bar*" jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
-		iifname { "test1", "test2" } jump helper_test4 comment "!fw4: test4 IPv4/IPv6 CT helper assignment"
-		iifname "foo*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
-		iifname "bar*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
-		iifname { "test1", "test2" } iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: test5 IPv4/IPv6 CT helper assignment"
+		iifname "/never/" jump helper_test2 comment "!fw4: Handle test2 IPv4/IPv6 helper assignment"
+		iifname "test*" jump helper_test3 comment "!fw4: Handle test3 IPv4/IPv6 helper assignment"
+		iifname "foo*" jump helper_test4 comment "!fw4: Handle test4 IPv4/IPv6 helper assignment"
+		iifname "bar*" jump helper_test4 comment "!fw4: Handle test4 IPv4/IPv6 helper assignment"
+		iifname { "test1", "test2" } jump helper_test4 comment "!fw4: Handle test4 IPv4/IPv6 helper assignment"
+		iifname "foo*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: Handle test5 IPv4/IPv6 helper assignment"
+		iifname "bar*" iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: Handle test5 IPv4/IPv6 helper assignment"
+		iifname { "test1", "test2" } iifname != { "test3", "test4" } iifname != "baz*" iifname != "qrx*" jump helper_test5 comment "!fw4: Handle test5 IPv4/IPv6 helper assignment"
 	}
 
 	chain handle_reject {

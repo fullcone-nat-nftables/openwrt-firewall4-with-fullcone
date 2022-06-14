@@ -1,0 +1,275 @@
+Ensure that NOTRACK rules end up in the appropriate chains, depending on
+the src and dest options.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_eth0_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_sys_class_net_lo_flags.txt --
+0x9
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "zone1",
+			"device": [ "eth0" ],
+			"auto_helper": 0
+		},
+		{
+			"name": "zone2",
+			"device": [ "lo" ],
+			"auto_helper": 0
+		},
+		{
+			"name": "zone3",
+			"subnet": [ "127.0.0.1/8", "::1/128" ],
+			"auto_helper": 0
+		}
+	],
+	"rule": [
+		{
+			".description": "An ordinary notrack rule should end up in the raw_prerouting chain",
+			"name": "Notrack rule #1",
+			"src": "zone1",
+			"target": "NOTRACK"
+		},
+		{
+			".description": "A notrack rule with loopback source device should end up in the raw_output chain",
+			"name": "Notrack rule #2",
+			"src": "zone2",
+			"target": "NOTRACK"
+		},
+		{
+			".description": "A notrack rule with loopback source address should end up in the raw_output chain",
+			"name": "Notrack rule #3",
+			"src": "zone3",
+			"target": "NOTRACK"
+		}
+	]
+}
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Set definitions
+	#
+
+
+	#
+	# Defines
+	#
+
+	define zone1_devices = { "eth0" }
+	define zone2_devices = { "lo" }
+	define zone3_subnets = { 127.0.0.0/8, ::1 }
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "eth0" jump input_zone1 comment "!fw4: Handle zone1 IPv4/IPv6 input traffic"
+		iifname "lo" jump input_zone2 comment "!fw4: Handle zone2 IPv4/IPv6 input traffic"
+		meta nfproto ipv4 ip saddr 127.0.0.0/8 jump input_zone3 comment "!fw4: Handle zone3 IPv4 input traffic"
+		meta nfproto ipv6 ip6 saddr ::1 jump input_zone3 comment "!fw4: Handle zone3 IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "eth0" jump forward_zone1 comment "!fw4: Handle zone1 IPv4/IPv6 forward traffic"
+		iifname "lo" jump forward_zone2 comment "!fw4: Handle zone2 IPv4/IPv6 forward traffic"
+		meta nfproto ipv4 ip saddr 127.0.0.0/8 jump forward_zone3 comment "!fw4: Handle zone3 IPv4 forward traffic"
+		meta nfproto ipv6 ip6 saddr ::1 jump forward_zone3 comment "!fw4: Handle zone3 IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "eth0" jump output_zone1 comment "!fw4: Handle zone1 IPv4/IPv6 output traffic"
+		oifname "lo" jump output_zone2 comment "!fw4: Handle zone2 IPv4/IPv6 output traffic"
+		meta nfproto ipv4 ip daddr 127.0.0.0/8 jump output_zone3 comment "!fw4: Handle zone3 IPv4 output traffic"
+		meta nfproto ipv6 ip6 daddr ::1 jump output_zone3 comment "!fw4: Handle zone3 IPv6 output traffic"
+	}
+
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_zone1 {
+		jump drop_from_zone1
+	}
+
+	chain output_zone1 {
+		jump drop_to_zone1
+	}
+
+	chain forward_zone1 {
+		jump drop_to_zone1
+	}
+
+	chain drop_from_zone1 {
+		iifname "eth0" counter drop comment "!fw4: drop zone1 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_zone1 {
+		oifname "eth0" counter drop comment "!fw4: drop zone1 IPv4/IPv6 traffic"
+	}
+
+	chain input_zone2 {
+		jump drop_from_zone2
+	}
+
+	chain output_zone2 {
+		jump drop_to_zone2
+	}
+
+	chain forward_zone2 {
+		jump drop_to_zone2
+	}
+
+	chain drop_from_zone2 {
+		iifname "lo" counter drop comment "!fw4: drop zone2 IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_zone2 {
+		oifname "lo" counter drop comment "!fw4: drop zone2 IPv4/IPv6 traffic"
+	}
+
+	chain input_zone3 {
+		jump drop_from_zone3
+	}
+
+	chain output_zone3 {
+		jump drop_to_zone3
+	}
+
+	chain forward_zone3 {
+		jump drop_to_zone3
+	}
+
+	chain drop_from_zone3 {
+		meta nfproto ipv4 ip saddr 127.0.0.0/8 counter drop comment "!fw4: drop zone3 IPv4 traffic"
+		meta nfproto ipv6 ip6 saddr ::1 counter drop comment "!fw4: drop zone3 IPv6 traffic"
+	}
+
+	chain drop_to_zone3 {
+		meta nfproto ipv4 ip daddr 127.0.0.0/8 counter drop comment "!fw4: drop zone3 IPv4 traffic"
+		meta nfproto ipv6 ip6 daddr ::1 counter drop comment "!fw4: drop zone3 IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+		iifname "eth0" jump notrack_zone1 comment "!fw4: Handle zone1 IPv4/IPv6 notrack traffic"
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+		iifname "lo" jump notrack_zone2 comment "!fw4: Handle zone2 IPv4/IPv6 notrack traffic"
+		meta nfproto ipv4 ip saddr 127.0.0.0/8 jump notrack_zone3 comment "!fw4: Handle zone3 IPv4 notrack traffic"
+		meta nfproto ipv6 ip6 saddr ::1 jump notrack_zone3 comment "!fw4: Handle zone3 IPv6 notrack traffic"
+	}
+
+	chain notrack_zone1 {
+		meta l4proto tcp counter notrack comment "!fw4: Notrack rule #1"
+		meta l4proto udp counter notrack comment "!fw4: Notrack rule #1"
+	}
+
+	chain notrack_zone2 {
+		meta l4proto tcp counter notrack comment "!fw4: Notrack rule #2"
+		meta l4proto udp counter notrack comment "!fw4: Notrack rule #2"
+	}
+
+	chain notrack_zone3 {
+		meta l4proto tcp counter notrack comment "!fw4: Notrack rule #3"
+		meta l4proto udp counter notrack comment "!fw4: Notrack rule #3"
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type route hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --

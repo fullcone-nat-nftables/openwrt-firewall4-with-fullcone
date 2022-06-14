@@ -147,10 +147,7 @@ table inet fw4 {
 {%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, true); %}
 {%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
 {%    if (devices_pos || subnets_pos): %}
-		{%+ if (rule.family): -%}
-			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
-		jump helper_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT helper assignment"
+		{%+ include("zone-jump.uc", { fw4, zone, rule: { ...rule, devices_pos, subnets_pos }, direction: "helper" }) %}
 {%    endif %}
 {%   endif %}
 		{%+ include("zone-jump.uc", { fw4, zone, rule, direction: "output" }) %}
@@ -169,10 +166,7 @@ table inet fw4 {
 {%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, false); %}
 {%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
 {%    if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
-		{%+ if (rule.family): -%}
-			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
-		jump helper_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT helper assignment"
+		{%+ include("zone-jump.uc", { fw4, zone, rule: { ...rule, devices_pos, subnets_pos }, direction: "helper" }) %}
 {%    endif %}
 {%   endfor %}
 {%  endif %}
@@ -333,10 +327,7 @@ table inet fw4 {
 {%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, false); %}
 {%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, false); %}
 {%    if (rule.devices_neg || rule.subnets_neg || devices_pos || subnets_pos): %}
-		{%+ if (rule.family): -%}
-			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
-		jump notrack_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT bypass"
+		{%+ include("zone-jump.uc", { fw4, zone, rule: { ...rule, devices_pos, subnets_pos }, direction: "notrack" }) %}
 {%    endif %}
 {%   endfor %}
 {%  endif %}
@@ -351,10 +342,7 @@ table inet fw4 {
 {%    let devices_pos = fw4.filter_loopback_devs(rule.devices_pos, true); %}
 {%    let subnets_pos = fw4.filter_loopback_addrs(rule.subnets_pos, true); %}
 {%    if (devices_pos || subnets_pos): %}
-		{%+ if (rule.family): -%}
-			meta nfproto {{ fw4.nfproto(rule.family) }} {%+ endif -%}
-		{%+ include("zone-match.uc", { fw4, egress: false, rule: { ...rule, devices_pos, subnets_pos } }) -%}
-		jump notrack_{{ zone.name }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(rule.family, true) }} CT bypass"
+		{%+ include("zone-jump.uc", { fw4, zone, rule: { ...rule, devices_pos, subnets_pos }, direction: "notrack" }) %}
 {%    endif %}
 {%   endfor %}
 {%  endif %}

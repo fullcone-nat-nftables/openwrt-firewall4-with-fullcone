@@ -142,7 +142,7 @@ table inet fw4 {
 
 	chain prerouting {
 		type filter hook prerouting priority filter; policy accept;
-		iifname "br-lan" jump helper_lan comment "!fw4: lan IPv4/IPv6 CT helper assignment"
+		iifname "br-lan" jump helper_lan comment "!fw4: Handle lan IPv4/IPv6 helper assignment"
 	}
 
 	chain handle_reject {
