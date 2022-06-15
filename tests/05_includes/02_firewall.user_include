@@ -1,0 +1,196 @@
+Testing that /etc/firewall.user is treated specially and requires an extra
+option to be marked compatible.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_eth0_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_etc_firewall_user.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_miniupnpd_firewall_include.txt --
+# dummy
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "test",
+			"device": [ "eth0" ],
+			"auto_helper": 0
+		}
+	],
+	"include": [
+		{
+			".description": "By default, this /etc/firewall.user include should be skipped with a warning",
+			"path": "/etc/firewall.user"
+		},
+
+		{
+			".description": "This /etc/firewall.user include should be added due to the compatible flag",
+			"path": "/etc/firewall.user",
+			"fw4_compatible": 1
+		},
+
+		{
+			".description": "An include of another path should not require a compatible flag",
+			"path": "/usr/share/miniupnpd/firewall.include"
+		}
+	]
+}
+-- End --
+
+-- Expect stderr --
+[!] Section @include[0] is not marked as compatible with fw4, ignoring section
+[!] Section @include[0] requires 'option fw4_compatible 1' to be considered compatible
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+table inet fw4 {
+	#
+	# Defines
+	#
+
+	define test_devices = { "eth0" }
+	define test_subnets = {  }
+
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "eth0" jump input_test comment "!fw4: Handle test IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "eth0" jump forward_test comment "!fw4: Handle test IPv4/IPv6 forward traffic"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "eth0" jump output_test comment "!fw4: Handle test IPv4/IPv6 output traffic"
+	}
+
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test {
+		jump drop_from_test
+	}
+
+	chain output_test {
+		jump drop_to_test
+	}
+
+	chain forward_test {
+		jump drop_to_test
+	}
+
+	chain drop_from_test {
+		iifname "eth0" counter drop comment "!fw4: drop test IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test {
+		oifname "eth0" counter drop comment "!fw4: drop test IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type route hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+}
+-- End --

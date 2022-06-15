@@ -1,0 +1,44 @@
+Testing the execution of include scripts.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		TRACE_CALLS: "stderr",
+
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'includes';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File fs/open~_var_run_fw4_state.txt --
+{
+	"includes": [
+		{
+			"enabled": true,
+			"path": "/usr/share/miniupnpd/firewall.include",
+			"type": "script",
+			"fw4_compatible": true,
+			"position": "table-append"
+		},
+
+		{
+			"enabled": true,
+			"path": "/etc/example.sh",
+			"type": "script",
+			"fw4_compatible": true,
+			"position": "table-append"
+		}
+	]
+}
+-- End --
+
+-- Expect stderr --
+[call] fs.open path </var/run/fw4.state> mode <r>
+[call] system command <[ "sh", "-c", "exec 1000>&-; config() { echo \"You cannot use UCI in firewall in..." ]> timeout <30000>
+[call] system command <[ "sh", "-c", "exec 1000>&-; config() { echo \"You cannot use UCI in firewall in..." ]> timeout <30000>
+-- End --

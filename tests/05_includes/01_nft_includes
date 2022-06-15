@@ -1,0 +1,266 @@
+Testing the correct placement of potential include positions.
+
+-- Testcase --
+{%
+	include("./root/usr/share/firewall4/main.uc", {
+		getenv: function(varname) {
+			switch (varname) {
+			case 'ACTION':
+				return 'print';
+			}
+		}
+	})
+%}
+-- End --
+
+-- File uci/helpers.json --
+{}
+-- End --
+
+-- File fs/open~_sys_class_net_eth0_flags.txt --
+0x1103
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-ruleset-start_nft.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-table-start_nft.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-chain-start-forward_nft.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-chain-end-forward_nft.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-table-end-1_nft.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-table-end-2_nft.txt --
+# dummy
+-- End --
+
+-- File fs/open~_usr_share_nftables_d_include-ruleset-end_nft.txt --
+# dummy
+-- End --
+
+-- File uci/firewall.json --
+{
+	"zone": [
+		{
+			"name": "test",
+			"device": [ "eth0" ],
+			"auto_helper": 0
+		}
+	],
+	"include": [
+		{
+			".description": "Position 'table-pre' (or 'table-prepend') will place an include before the first chain",
+			"path": "/usr/share/nftables.d/include-table-start.nft",
+			"type": "nftables",
+			"position": "table-pre"
+		},
+
+		{
+			".description": "Position defaults to 'table-append', means after the last chain in the table scope",
+			"path": "/usr/share/nftables.d/include-table-end-1.nft",
+			"type": "nftables"
+		},
+
+		{
+			".description": "Position 'table-post' (or 'table-postpend') may be used as alias for 'table-append'",
+			"path": "/usr/share/nftables.d/include-table-end-2.nft",
+			"type": "nftables",
+			"position": "table-post"
+		},
+
+		{
+			".description": "Position 'ruleset-pre' (or 'ruleset-prepend') will place an include before the table declaration",
+			"path": "/usr/share/nftables.d/include-ruleset-start.nft",
+			"type": "nftables",
+			"position": "ruleset-pre"
+		},
+
+		{
+			".description": "Position 'ruleset-post' (or 'ruleset-append') will place an include after the table declaration",
+			"path": "/usr/share/nftables.d/include-ruleset-end.nft",
+			"type": "nftables",
+			"position": "ruleset-post"
+		},
+
+		{
+			".description": "Position 'chain-pre' (or 'chain-prepend') will place an include at the top of a specified chain",
+			"path": "/usr/share/nftables.d/include-chain-start-forward.nft",
+			"type": "nftables",
+			"position": "chain-pre",
+			"chain": "forward"
+		},
+
+		{
+			".description": "Position 'chain-post' (or 'chain-append') will place an include at the bottom of a specified chain",
+			"path": "/usr/share/nftables.d/include-chain-end-forward.nft",
+			"type": "nftables",
+			"position": "chain-post",
+			"chain": "forward"
+		},
+
+		{
+			".description": "Position 'chain-pre' or 'chain-post' without chain option will yield and error",
+			"path": "/usr/share/nftables.d/include-chain-end-forward.nft",
+			"type": "nftables",
+			"position": "chain-post"
+		},
+	]
+}
+-- End --
+
+-- Expect stderr --
+[!] Section @include[7] must specify 'chain' for position chain-append, ignoring section
+-- End --
+
+-- Expect stdout --
+table inet fw4
+flush table inet fw4
+
+include "/usr/share/nftables.d/include-ruleset-start.nft"
+
+table inet fw4 {
+	#
+	# Defines
+	#
+
+	define test_devices = { "eth0" }
+	define test_subnets = {  }
+
+
+	#
+	# User includes
+	#
+
+	include "/etc/nftables.d/*.nft"
+
+	include "/usr/share/nftables.d/include-table-start.nft"
+
+
+	#
+	# Filter rules
+	#
+
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iifname "lo" accept comment "!fw4: Accept traffic from loopback"
+
+		ct state established,related accept comment "!fw4: Allow inbound established and related flows"
+		iifname "eth0" jump input_test comment "!fw4: Handle test IPv4/IPv6 input traffic"
+	}
+
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+
+		include "/usr/share/nftables.d/include-chain-start-forward.nft"
+		ct state established,related accept comment "!fw4: Allow forwarded established and related flows"
+		iifname "eth0" jump forward_test comment "!fw4: Handle test IPv4/IPv6 forward traffic"
+		include "/usr/share/nftables.d/include-chain-end-forward.nft"
+	}
+
+	chain output {
+		type filter hook output priority filter; policy drop;
+
+		oifname "lo" accept comment "!fw4: Accept traffic towards loopback"
+
+		ct state established,related accept comment "!fw4: Allow outbound established and related flows"
+		oifname "eth0" jump output_test comment "!fw4: Handle test IPv4/IPv6 output traffic"
+	}
+
+	chain prerouting {
+		type filter hook prerouting priority filter; policy accept;
+	}
+
+	chain handle_reject {
+		meta l4proto tcp reject with tcp reset comment "!fw4: Reject TCP traffic"
+		reject with icmpx type port-unreachable comment "!fw4: Reject any other traffic"
+	}
+
+	chain input_test {
+		jump drop_from_test
+	}
+
+	chain output_test {
+		jump drop_to_test
+	}
+
+	chain forward_test {
+		jump drop_to_test
+	}
+
+	chain drop_from_test {
+		iifname "eth0" counter drop comment "!fw4: drop test IPv4/IPv6 traffic"
+	}
+
+	chain drop_to_test {
+		oifname "eth0" counter drop comment "!fw4: drop test IPv4/IPv6 traffic"
+	}
+
+
+	#
+	# NAT rules
+	#
+
+	chain dstnat {
+		type nat hook prerouting priority dstnat; policy accept;
+	}
+
+	chain srcnat {
+		type nat hook postrouting priority srcnat; policy accept;
+	}
+
+
+	#
+	# Raw rules (notrack)
+	#
+
+	chain raw_prerouting {
+		type filter hook prerouting priority raw; policy accept;
+	}
+
+	chain raw_output {
+		type filter hook output priority raw; policy accept;
+	}
+
+
+	#
+	# Mangle rules
+	#
+
+	chain mangle_prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+	}
+
+	chain mangle_postrouting {
+		type filter hook postrouting priority mangle; policy accept;
+	}
+
+	chain mangle_input {
+		type filter hook input priority mangle; policy accept;
+	}
+
+	chain mangle_output {
+		type route hook output priority mangle; policy accept;
+	}
+
+	chain mangle_forward {
+		type filter hook forward priority mangle; policy accept;
+	}
+
+	include "/usr/share/nftables.d/include-table-end-1.nft"
+	include "/usr/share/nftables.d/include-table-end-2.nft"
+}
+
+include "/usr/share/nftables.d/include-ruleset-end.nft"
+-- End --
