@@ -3219,6 +3219,12 @@ return {
 			interval: interval
 		};
 
+		if (s.interval)
+			push(s.flags ??= [], 'interval');
+
+		if (s.timeout >= 0)
+			push(s.flags ??= [], 'timeout');
+
 		s.entries = filter(map(ipset.entry, (e) => {
 			let v = this.parse_ipsetentry(e, s);
 

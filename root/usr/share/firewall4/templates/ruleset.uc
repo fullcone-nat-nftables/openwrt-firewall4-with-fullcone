@@ -53,12 +53,14 @@ table inet fw4 {
 {%   if (set.maxelem > 0): %}
 		size {{ set.maxelem }}
 {%   endif %}
-{%   if (set.timeout >= 0): %}
+{%   if (set.timeout > 0): %}
 		timeout {{ set.timeout }}s
 {%   endif %}
 {%   if (set.interval): %}
-		flags interval
 		auto-merge
+{%   endif %}
+{%   if (set.flags): %}
+		flags {{ join(',', set.flags) }}
 {%   endif %}
 {%   fw4.print_setentries(set) %}
 	}
