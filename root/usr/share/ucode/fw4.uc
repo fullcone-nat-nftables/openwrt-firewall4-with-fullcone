@@ -2244,6 +2244,7 @@ return {
 			set_dscp: [ "dscp", null, NO_INVERT ],
 
 			counter: [ "bool", "1" ],
+			log: [ "string" ],
 
 			target: [ "target" ]
 		});
@@ -2276,6 +2277,15 @@ return {
 		else if (rule.device?.any) {
 			this.warn_section(data, "must not specify '*' as device");
 			return;
+		}
+
+		switch (this.parse_bool(rule.log)) {
+		case true:
+			rule.log = rule.name;
+			break;
+
+		case false:
+			delete rule.log;
 		}
 
 		let ipset;
@@ -2550,6 +2560,7 @@ return {
 			reflection_zone: [ "zone_ref", null, PARSE_LIST ],
 
 			counter: [ "bool", "1" ],
+			log: [ "string" ],
 
 			target: [ "target", "dnat" ]
 		});
@@ -2566,6 +2577,15 @@ return {
 		if (!(redir.target in ["dnat", "snat"])) {
 			this.warn_section(data, "has invalid target specified, defaulting to dnat");
 			redir.target = "dnat";
+		}
+
+		switch (this.parse_bool(redir.log)) {
+		case true:
+			redir.log = redir.name;
+			break;
+
+		case false:
+			delete redir.log;
 		}
 
 		let ipset;
@@ -2655,7 +2675,6 @@ return {
 
 			redir.dest.zone.dflags[redir.target] = true;
 		}
-
 
 		let add_rule = (family, proto, saddrs, daddrs, raddrs, sport, dport, rport, ipset, redir) => {
 			let r = {
