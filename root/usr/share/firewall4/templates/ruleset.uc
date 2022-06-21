@@ -239,8 +239,11 @@ table inet fw4 {
 {%   for (let redirect in fw4.redirects(`dstnat_${zone.name}`)): %}
 		{%+ include("redirect.uc", { fw4, redirect }) %}
 {%   endfor %}
-{%   if (zone.fullcone): %}
-		{%+ include("zone-fullcone.uc", { fw4, zone, direction: "dstnat" }) %}
+{%   if (zone.masq && zone.fullcone): %}
+		{%+ include("zone-fullcone.uc", { fw4, zone, family: 4, direction: "dstnat" }) %}
+{%   endif %}
+{%   if (zone.masq6 && zone.fullcone): %}
+		{%+ include("zone-fullcone.uc", { fw4, zone, family: 6, direction: "dstnat" }) %}
 {%   endif %}
 	}
 
@@ -264,8 +267,11 @@ table inet fw4 {
 {%     endfor %}
 {%    endfor %}
 {%   endif %}
-{%   if (zone.fullcone): %}
-		{%+ include("zone-fullcone.uc", { fw4, zone, direction: "srcnat" }) %}
+{%   if (zone.masq && zone.fullcone): %}
+		{%+ include("zone-fullcone.uc", { fw4, zone, family: 4, direction: "srcnat" }) %}
+{%   endif %}
+{%   if (zone.masq6 && zone.fullcone): %}
+		{%+ include("zone-fullcone.uc", { fw4, zone, family: 6, direction: "srcnat" }) %}
 {%   endif %}
 	}
 
